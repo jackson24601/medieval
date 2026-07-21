@@ -1,5 +1,24 @@
 (() => {
   const ROUND_SECONDS = 10 * 60;
+  const MOVE_SPEED = 11; // map percent per second
+  const WALK_FRAME_MS = 140;
+
+  const TASK_DESTINATIONS = {
+    farm: [
+      { left: 18, top: 50 },
+      { left: 80, top: 48 },
+      { left: 22, top: 64 },
+      { left: 74, top: 62 },
+    ],
+    mine: [{ left: 84, top: 16 }],
+    "chop-wood": [
+      { left: 14, top: 28 },
+      { left: 48, top: 18 },
+      { left: 90, top: 58 },
+      { left: 60, top: 78 },
+    ],
+    "return-to-castle": [{ left: 50, top: 50 }],
+  };
 
   const timerEl = document.getElementById("round-timer");
   const recruitButton = document.getElementById("recruit-button");
@@ -15,6 +34,7 @@
 
   const units = Array.from(document.querySelectorAll(".unit"));
   const allMenus = [recruitMenu, buildMenu, villagerMenu].filter(Boolean);
+  const activeMoves = new Map();
 
   function formatTime(totalSeconds) {
     const minutes = Math.floor(totalSeconds / 60);
@@ -105,8 +125,97 @@
     if (firstOption) firstOption.focus();
   }
 
+  function getUnitPosition(unit) {
+    return {
+      left: parseFloat(unit.style.left) || 0,
+      top: parseFloat(unit.style.top) || 0,
+    };
+  }
+
+  function nearestDestination(from, destinations) {
+    let best = destinations[0];
+    let bestDist = Infinity;
+    destinations.forEach((point) => {
+      const dist =
+        (point.left - from.left) ** 2 + (point.top - from.top) ** 2;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = point;
+      }
+    });
+    return best;
+  }
+
+  function easeInOut(t) {
+    return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+  }
+
+  function stopUnit(unit) {
+    activeMoves.delete(unit);
+    unit.classList.remove("is-walking");
+    unit.dataset.frame = "0";
+  }
+
+  function moveUnit(unit, destination) {
+    const from = getUnitPosition(unit);
+    const dx = destination.left - from.left;
+    const dy = destination.top - from.top;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 0.4) {
+      stopUnit(unit);
+      return;
+    }
+
+    const duration = Math.max(0.5, distance / MOVE_SPEED) * 1000;
+    unit.classList.add("is-walking");
+    unit.classList.toggle("is-flipped", dx < 0);
+    activeMoves.set(unit, {
+      from,
+      destination,
+      start: performance.now(),
+      duration,
+    });
+  }
+
+  function assignVillagerTask(unit, action) {
+    if (!unit || !action) return;
+    unit.dataset.task = action;
+    const destinations = TASK_DESTINATIONS[action];
+    if (!destinations?.length) return;
+    const from = getUnitPosition(unit);
+    const destination = nearestDestination(from, destinations);
+    moveUnit(unit, destination);
+  }
+
+  function updateMoves(now) {
+    activeMoves.forEach((move, unit) => {
+      const t = Math.min(1, (now - move.start) / move.duration);
+      const progress = easeInOut(t);
+      const left =
+        move.from.left + (move.destination.left - move.from.left) * progress;
+      const top =
+        move.from.top + (move.destination.top - move.from.top) * progress;
+
+      unit.style.left = `${left}%`;
+      unit.style.top = `${top}%`;
+      unit.dataset.frame = String(1 + (Math.floor(now / WALK_FRAME_MS) % 3));
+
+      if (t >= 1) {
+        unit.style.left = `${move.destination.left}%`;
+        unit.style.top = `${move.destination.top}%`;
+        stopUnit(unit);
+      }
+    });
+  }
+
+  function animationLoop(now) {
+    updateMoves(now);
+    requestAnimationFrame(animationLoop);
+  }
+
   updateTimer();
   window.setInterval(tick, 1000);
+  requestAnimationFrame(animationLoop);
 
   recruitButton?.addEventListener("click", () => {
     openMenuPanel(recruitMenu, recruitButton);
@@ -151,7 +260,7 @@
     button.addEventListener("click", () => {
       if (!selectedUnit) return;
       const action = button.getAttribute("data-villager-action");
-      selectedUnit.dataset.task = action || "";
+      assignVillagerTask(selectedUnit, action);
       closeMenus();
     });
   });
