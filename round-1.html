@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Fraunces:opsz,wght@9..144,500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=villagers2" />
+    <link rel="stylesheet" href="styles.css?v=villager-actions" />
   </head>
   <body class="game-body">
     <main class="game" aria-label="Round one battlefield">
@@ -165,6 +165,62 @@
         </div>
       </div>
 
+      <div
+        class="popup"
+        id="villager-menu"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="villager-menu-title"
+        hidden
+      >
+        <div class="popup__panel">
+          <header class="popup__header">
+            <h2 class="popup__title" id="villager-menu-title">Villager</h2>
+            <button type="button" class="popup__close" data-close-popup>
+              Close
+            </button>
+          </header>
+          <ul class="popup__list">
+            <li>
+              <button
+                type="button"
+                class="popup__option"
+                data-villager-action="farm"
+              >
+                Farm
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                class="popup__option"
+                data-villager-action="mine"
+              >
+                Mine
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                class="popup__option"
+                data-villager-action="chop-wood"
+              >
+                Chop Wood
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                class="popup__option"
+                data-villager-action="return-to-castle"
+              >
+                Return to Castle
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+
       <footer class="hud" aria-label="Game controls">
         <div class="hud__item hud__timer">
           <span class="hud__label">Time</span>
@@ -216,6 +272,6 @@
       </footer>
     </main>
 
-    <script src="game.js?v=villagers2" defer></script>
+    <script src="game.js?v=villager-actions" defer></script>
   </body>
 </html>

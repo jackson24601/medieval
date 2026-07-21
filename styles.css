@@ -374,7 +374,7 @@ body {
   padding: 0;
   border: none;
   background: transparent;
-  width: clamp(4.5rem, 8vw, 7rem);
+  width: clamp(2.25rem, 4vw, 3.5rem);
   aspect-ratio: 72 / 96;
   transform: translate(-50%, -78%);
   cursor: pointer;
@@ -656,6 +656,13 @@ body {
   border: 2px solid rgba(61, 42, 20, 0.35);
   border-radius: 5px;
   cursor: pointer;
+}
+
+.popup__option:not(:disabled):hover,
+.popup__option:not(:disabled):focus-visible {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(61, 42, 20, 0.55);
+  outline: none;
 }
 
 .popup__option:disabled {
