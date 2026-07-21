@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Round 1 — Humans vs. Goblins</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Fraunces:opsz,wght@9..144,500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body class="game-body">
@@ -17,6 +23,141 @@
           height="1024"
         />
       </div>
+
+      <div
+        class="popup-backdrop"
+        id="popup-backdrop"
+        hidden
+        aria-hidden="true"
+      ></div>
+
+      <div
+        class="popup"
+        id="recruit-menu"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recruit-menu-title"
+        hidden
+      >
+        <div class="popup__panel">
+          <header class="popup__header">
+            <h2 class="popup__title" id="recruit-menu-title">Recruit</h2>
+            <button type="button" class="popup__close" data-close-popup>
+              Close
+            </button>
+          </header>
+          <ul class="popup__list">
+            <li>
+              <button type="button" class="popup__option" disabled>
+                Footman
+                <span class="popup__hint">Coming soon</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="popup__option" disabled>
+                Archer
+                <span class="popup__hint">Coming soon</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="popup__option" disabled>
+                Knight
+                <span class="popup__hint">Coming soon</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div
+        class="popup"
+        id="build-menu"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="build-menu-title"
+        hidden
+      >
+        <div class="popup__panel">
+          <header class="popup__header">
+            <h2 class="popup__title" id="build-menu-title">Build</h2>
+            <button type="button" class="popup__close" data-close-popup>
+              Close
+            </button>
+          </header>
+          <ul class="popup__list">
+            <li>
+              <button type="button" class="popup__option" disabled>
+                Wooden Palisade
+                <span class="popup__hint">Coming soon</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="popup__option" disabled>
+                Stone Wall
+                <span class="popup__hint">Coming soon</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="popup__option" disabled>
+                Watchtower
+                <span class="popup__hint">Coming soon</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <footer class="hud" aria-label="Game controls">
+        <div class="hud__item hud__timer">
+          <span class="hud__label">Time</span>
+          <time class="hud__timer-value" id="round-timer" datetime="PT10M"
+            >10:00</time
+          >
+        </div>
+
+        <div class="hud__item hud__health">
+          <span class="hud__label" id="castle-label">Castle</span>
+          <div
+            class="health-bar"
+            role="meter"
+            aria-labelledby="castle-label"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="100"
+            id="castle-health"
+          >
+            <div class="health-bar__track">
+              <div class="health-bar__fill" id="castle-health-fill"></div>
+            </div>
+            <span class="health-bar__value" id="castle-health-value">100</span>
+          </div>
+        </div>
+
+        <div class="hud__item hud__actions">
+          <button
+            type="button"
+            class="hud__button"
+            id="recruit-button"
+            aria-haspopup="dialog"
+            aria-controls="recruit-menu"
+            aria-expanded="false"
+          >
+            Recruit
+          </button>
+          <button
+            type="button"
+            class="hud__button"
+            id="build-button"
+            aria-haspopup="dialog"
+            aria-controls="build-menu"
+            aria-expanded="false"
+          >
+            Build
+          </button>
+        </div>
+      </footer>
     </main>
+
+    <script src="game.js" defer></script>
   </body>
 </html>
