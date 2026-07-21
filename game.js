@@ -6,6 +6,7 @@
   const buildButton = document.getElementById("build-button");
   const recruitMenu = document.getElementById("recruit-menu");
   const buildMenu = document.getElementById("build-menu");
+  const villagerMenu = document.getElementById("villager-menu");
   const backdrop = document.getElementById("popup-backdrop");
 
   let remainingSeconds = ROUND_SECONDS;
@@ -13,6 +14,7 @@
   let selectedUnit = null;
 
   const units = Array.from(document.querySelectorAll(".unit"));
+  const allMenus = [recruitMenu, buildMenu, villagerMenu].filter(Boolean);
 
   function formatTime(totalSeconds) {
     const minutes = Math.floor(totalSeconds / 60);
@@ -43,8 +45,8 @@
   }
 
   function closeMenus() {
-    [recruitMenu, buildMenu].forEach((menu) => {
-      if (menu) menu.hidden = true;
+    allMenus.forEach((menu) => {
+      menu.hidden = true;
     });
     if (backdrop) {
       backdrop.hidden = true;
@@ -55,22 +57,52 @@
     openMenu = null;
   }
 
+  function showBackdrop() {
+    if (!backdrop) return;
+    backdrop.hidden = false;
+    backdrop.setAttribute("aria-hidden", "false");
+  }
+
   function openMenuPanel(menu, button) {
-    if (!menu || !button) return;
-    if (openMenu === menu) {
+    if (!menu) return;
+    if (openMenu === menu && button) {
       closeMenus();
       return;
     }
     closeMenus();
     menu.hidden = false;
-    if (backdrop) {
-      backdrop.hidden = false;
-      backdrop.setAttribute("aria-hidden", "false");
-    }
-    setExpanded(button, true);
+    showBackdrop();
+    if (button) setExpanded(button, true);
     openMenu = menu;
     const closeBtn = menu.querySelector("[data-close-popup]");
     if (closeBtn) closeBtn.focus();
+  }
+
+  function clearSelection() {
+    units.forEach((unit) => {
+      unit.classList.remove("is-selected");
+      unit.setAttribute("aria-pressed", "false");
+    });
+    selectedUnit = null;
+  }
+
+  function selectUnit(unit) {
+    if (!unit) return;
+    clearSelection();
+    unit.classList.add("is-selected");
+    unit.setAttribute("aria-pressed", "true");
+    selectedUnit = unit;
+  }
+
+  function openVillagerMenu(unit) {
+    selectUnit(unit);
+    if (!villagerMenu) return;
+    closeMenus();
+    villagerMenu.hidden = false;
+    showBackdrop();
+    openMenu = villagerMenu;
+    const firstOption = villagerMenu.querySelector("[data-villager-action]");
+    if (firstOption) firstOption.focus();
   }
 
   updateTimer();
@@ -84,7 +116,9 @@
     openMenuPanel(buildMenu, buildButton);
   });
 
-  backdrop?.addEventListener("click", closeMenus);
+  backdrop?.addEventListener("click", () => {
+    closeMenus();
+  });
 
   document.querySelectorAll("[data-close-popup]").forEach((button) => {
     button.addEventListener("click", closeMenus);
@@ -102,30 +136,23 @@
     }
   });
 
-  function clearSelection() {
-    units.forEach((unit) => {
-      unit.classList.remove("is-selected");
-      unit.setAttribute("aria-pressed", "false");
-    });
-    selectedUnit = null;
-  }
-
-  function selectUnit(unit) {
-    if (!unit) return;
-    if (selectedUnit === unit) {
-      clearSelection();
-      return;
-    }
-    clearSelection();
-    unit.classList.add("is-selected");
-    unit.setAttribute("aria-pressed", "true");
-    selectedUnit = unit;
-  }
-
   units.forEach((unit) => {
     unit.addEventListener("click", (event) => {
       event.stopPropagation();
+      if (unit.dataset.unit === "villager") {
+        openVillagerMenu(unit);
+        return;
+      }
       selectUnit(unit);
+    });
+  });
+
+  villagerMenu?.querySelectorAll("[data-villager-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!selectedUnit) return;
+      const action = button.getAttribute("data-villager-action");
+      selectedUnit.dataset.task = action || "";
+      closeMenus();
     });
   });
 
@@ -133,6 +160,8 @@
     if (event.target.closest(".unit")) return;
     if (event.target.closest(".hud")) return;
     if (event.target.closest(".popup")) return;
-    clearSelection();
+    if (!openMenu) {
+      clearSelection();
+    }
   });
 })();
