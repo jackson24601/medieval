@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 80" fill="none" aria-hidden="true">
+  <!-- shadow -->
+  <ellipse cx="32" cy="74" rx="14" ry="4" fill="#1c140c" opacity="0.28"/>
+  <!-- boots -->
+  <path d="M22 66c0-2 2-3 4-3h3v8c-4 1-7-1-7-5z" fill="#4a3422"/>
+  <path d="M35 63h3c2 0 4 1 4 3 0 4-3 6-7 5v-8z" fill="#4a3422"/>
+  <!-- legs -->
+  <rect x="24" y="48" width="7" height="16" rx="2" fill="#d8c7a2"/>
+  <rect x="33" y="48" width="7" height="16" rx="2" fill="#cbb892"/>
+  <!-- tunic -->
+  <path d="M20 28c2-3 6-5 12-5s10 2 12 5l4 8c1 3 0 6-2 8l-3 12H21l-3-12c-2-2-3-5-2-8l4-8z" fill="#8b5a2b"/>
+  <path d="M26 31c2-1 4-2 6-2s4 1 6 2" stroke="#5c3a18" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- belt -->
+  <rect x="22" y="46" width="20" height="3" rx="1" fill="#3d2a14"/>
+  <rect x="30" y="45.5" width="4" height="4" rx="0.5" fill="#c9a35a"/>
+  <!-- arms -->
+  <path d="M20 34c-4 2-7 6-7 10 0 2 1 3 3 3h3v-6l1-7z" fill="#8b5a2b"/>
+  <path d="M44 34c4 2 7 6 7 10 0 2-1 3-3 3h-3v-6l-1-7z" fill="#8b5a2b"/>
+  <!-- hands -->
+  <circle cx="15" cy="48" r="3" fill="#e6c4a0"/>
+  <circle cx="49" cy="48" r="3" fill="#e6c4a0"/>
+  <!-- pitchfork -->
+  <rect x="12.5" y="36" width="2" height="28" rx="1" fill="#6b4a28"/>
+  <path d="M10 36v-8M13.5 36v-10M17 36v-8" stroke="#6b7280" stroke-width="1.6" stroke-linecap="round"/>
+  <!-- head -->
+  <circle cx="32" cy="20" r="9" fill="#e6c4a0"/>
+  <!-- hair/beard hint -->
+  <path d="M25 22c1 5 4 7 7 7s6-2 7-7" fill="#6b4a28" opacity="0.85"/>
+  <!-- face -->
+  <circle cx="29" cy="19" r="1.1" fill="#3d2a14"/>
+  <circle cx="35" cy="19" r="1.1" fill="#3d2a14"/>
+  <path d="M30 23c1 1 3 1 4 0" stroke="#3d2a14" stroke-width="1" stroke-linecap="round"/>
+  <!-- hat -->
+  <path d="M22 16c1-8 7-12 14-10 4 1 7 5 7 10H22z" fill="#6b4a28"/>
+  <ellipse cx="32" cy="16" rx="13" ry="3.5" fill="#5a3d1c"/>
+  <path d="M38 8c3-1 6 1 5 4" stroke="#6b4a28" stroke-width="3" stroke-linecap="round"/>
+</svg>
