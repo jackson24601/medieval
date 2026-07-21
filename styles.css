@@ -358,6 +358,72 @@ body {
   pointer-events: none;
 }
 
+/* —— Units —— */
+
+.units {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.unit {
+  position: absolute;
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  width: clamp(2.75rem, 5.5vw, 4.25rem);
+  aspect-ratio: 64 / 80;
+  transform: translate(-50%, -70%);
+  cursor: pointer;
+  pointer-events: auto;
+  filter: drop-shadow(0 2px 2px rgba(20, 12, 4, 0.35));
+  transition:
+    transform 0.12s ease,
+    filter 0.12s ease;
+}
+
+.unit img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.unit:hover,
+.unit:focus-visible {
+  transform: translate(-50%, -70%) scale(1.08);
+  outline: none;
+  filter: drop-shadow(0 3px 3px rgba(20, 12, 4, 0.4));
+}
+
+.unit.is-selected,
+.unit[aria-pressed="true"] {
+  transform: translate(-50%, -70%) scale(1.1);
+  filter:
+    drop-shadow(0 0 0 2px #fff6d8)
+    drop-shadow(0 0 0 5px #c9a35a)
+    drop-shadow(0 3px 3px rgba(20, 12, 4, 0.45));
+}
+
+.unit.is-selected::after,
+.unit[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 4%;
+  width: 70%;
+  height: 18%;
+  transform: translateX(-50%);
+  border: 2px solid #f0d27a;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(42, 26, 10, 0.45);
+  pointer-events: none;
+}
+
 /* —— Game HUD —— */
 
 .hud {

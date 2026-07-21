@@ -10,6 +10,9 @@
 
   let remainingSeconds = ROUND_SECONDS;
   let openMenu = null;
+  let selectedUnit = null;
+
+  const units = Array.from(document.querySelectorAll(".unit"));
 
   function formatTime(totalSeconds) {
     const minutes = Math.floor(totalSeconds / 60);
@@ -88,8 +91,48 @@
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && openMenu) {
-      closeMenus();
+    if (event.key === "Escape") {
+      if (openMenu) {
+        closeMenus();
+        return;
+      }
+      if (selectedUnit) {
+        clearSelection();
+      }
     }
+  });
+
+  function clearSelection() {
+    units.forEach((unit) => {
+      unit.classList.remove("is-selected");
+      unit.setAttribute("aria-pressed", "false");
+    });
+    selectedUnit = null;
+  }
+
+  function selectUnit(unit) {
+    if (!unit) return;
+    if (selectedUnit === unit) {
+      clearSelection();
+      return;
+    }
+    clearSelection();
+    unit.classList.add("is-selected");
+    unit.setAttribute("aria-pressed", "true");
+    selectedUnit = unit;
+  }
+
+  units.forEach((unit) => {
+    unit.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectUnit(unit);
+    });
+  });
+
+  document.querySelector(".game")?.addEventListener("click", (event) => {
+    if (event.target.closest(".unit")) return;
+    if (event.target.closest(".hud")) return;
+    if (event.target.closest(".popup")) return;
+    clearSelection();
   });
 })();
