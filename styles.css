@@ -177,18 +177,35 @@ body {
     0 2px 0 var(--start-edge);
 }
 
-/* —— Instructions placeholder —— */
+/* —— Instructions —— */
 
 .instructions {
+  position: relative;
   min-height: 100dvh;
-  padding: clamp(1.5rem, 4vw, 2.5rem);
+  padding: clamp(1.5rem, 4vw, 2.75rem);
   background:
     radial-gradient(ellipse at 30% 0%, rgba(255, 230, 160, 0.35), transparent 50%),
     linear-gradient(160deg, #7a9a5c 0%, #4a6b3a 45%, #3d5530 100%);
   color: var(--parchment);
+  overflow: hidden;
+}
+
+.instructions::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(rgba(28, 20, 12, 0.06) 1px, transparent 1px),
+    radial-gradient(rgba(255, 244, 212, 0.05) 1px, transparent 1px);
+  background-size: 18px 18px, 28px 28px;
+  background-position: 0 0, 9px 14px;
+  pointer-events: none;
+  opacity: 0.7;
 }
 
 .back-link {
+  position: relative;
+  z-index: 1;
   font-family: var(--font-body);
   font-size: 1rem;
   color: var(--parchment);
@@ -203,22 +220,44 @@ body {
 }
 
 .instructions__title {
-  margin: 2rem 0 0.75rem;
+  position: relative;
+  z-index: 1;
+  margin: 1.75rem 0 1.25rem;
   font-family: var(--font-bubble);
   font-weight: 800;
-  font-size: clamp(2rem, 6vw, 3.25rem);
+  font-size: clamp(2.1rem, 6vw, 3.4rem);
+  line-height: 1;
   color: var(--title-fill);
   -webkit-text-stroke: 0.04em var(--title-stroke);
   paint-order: stroke fill;
   text-shadow: 0 0.08em 0 rgba(42, 26, 10, 0.45);
+  animation: title-pop 0.75s cubic-bezier(0.34, 1.45, 0.64, 1) both;
 }
 
-.instructions__note {
-  margin: 0;
-  max-width: 32rem;
-  font-size: 1.15rem;
-  line-height: 1.5;
-  color: rgba(243, 230, 200, 0.92);
+.instructions__copy {
+  position: relative;
+  z-index: 1;
+  max-width: 38rem;
+  animation: start-enter 0.7s cubic-bezier(0.34, 1.3, 0.64, 1) 0.15s both;
+}
+
+.instructions__copy p {
+  margin: 0 0 1.15rem;
+  font-size: clamp(1.05rem, 2.2vw, 1.2rem);
+  font-weight: 500;
+  line-height: 1.65;
+  color: rgba(255, 246, 220, 0.95);
+  text-shadow: 0 1px 2px rgba(20, 30, 12, 0.35);
+}
+
+.instructions__copy p:last-child {
+  margin-bottom: 0;
+}
+
+.instructions__copy strong {
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 0.02em;
 }
 
 /* —— Motion —— */
@@ -279,7 +318,9 @@ body {
   .title__vs,
   .start-box,
   .scene__image,
-  .sky-glow {
+  .sky-glow,
+  .instructions__title,
+  .instructions__copy {
     animation: none;
   }
 }
