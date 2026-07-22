@@ -11,18 +11,20 @@
     label: "Goblin",
     sprite: "assets/units/goblin-1.png",
     maxHp: 5,
-    attack: 1,
   };
 
   const UNIT_STATS = {
-    villager: { maxHp: 5, attack: 1 },
-    footman: { maxHp: 10, attack: 2 },
-    archer: { maxHp: 10, attack: 2 },
-    knight: { maxHp: 25, attack: 3 },
-    goblin: { maxHp: 5, attack: 1 },
+    villager: { maxHp: 5 },
+    footman: { maxHp: 10 },
+    archer: { maxHp: 10 },
+    knight: { maxHp: 25 },
+    goblin: { maxHp: 5 },
   };
 
-  const COMBAT_RANGE = 3.2;
+  const COMBAT_INTERVAL_SECONDS = 2;
+  const MELEE_RANGE_INCHES = 0.45;
+  const ARCHER_RANGE_INCHES = 2;
+  const CSS_PX_PER_INCH = 96;
 
   const TASK_DESTINATIONS = {
     farm: [
@@ -126,6 +128,7 @@
 
   let remainingSeconds = ROUND_SECONDS;
   let gatherCountdown = GATHER_INTERVAL_SECONDS;
+  let combatCountdown = COMBAT_INTERVAL_SECONDS;
   let openMenu = null;
   let selectedUnit = null;
   let nextUnitId = 1;
@@ -250,13 +253,70 @@
     if (unit.dataset.unit === "goblin") {
       const level = Number(unit.dataset.goblinLevel || 1);
       if (level === 1) {
-        return {
-          maxHp: GOBLIN_LEVEL_1.maxHp,
-          attack: GOBLIN_LEVEL_1.attack,
-        };
+        return { maxHp: GOBLIN_LEVEL_1.maxHp };
       }
     }
     return UNIT_STATS[unit.dataset.unit] || UNIT_STATS.villager;
+  }
+
+  function getRangePercent(inches) {
+    const gameEl = document.querySelector(".game");
+    const width = gameEl?.getBoundingClientRect().width || 1200;
+    return ((inches * CSS_PX_PER_INCH) / width) * 100;
+  }
+
+  function getMeleeRangePercent() {
+    return getRangePercent(MELEE_RANGE_INCHES);
+  }
+
+  function getAttackRangePercent(unit) {
+    if (unit?.dataset.unit === "archer") {
+      return getRangePercent(ARCHER_RANGE_INCHES);
+    }
+    return getMeleeRangePercent();
+  }
+
+  function rollD6() {
+    return 1 + Math.floor(Math.random() * 6);
+  }
+
+  function rollAttackDamage(unit) {
+    if (!unit) return 0;
+    const type = unit.dataset.unit;
+
+    if (type === "knight") {
+      return 2;
+    }
+
+    const roll = rollD6();
+
+    if (type === "villager") {
+      return roll >= 5 ? 1 : 0;
+    }
+
+    if (type === "goblin") {
+      const level = Number(unit.dataset.goblinLevel || 1);
+      if (level === 1) {
+        return roll >= 2 ? 1 : 0;
+      }
+      return 0;
+    }
+
+    if (type === "footman" || type === "archer") {
+      return roll >= 3 ? 1 : 0;
+    }
+
+    return 0;
+  }
+
+  function playAttackShake(unit) {
+    if (!unit) return;
+    unit.classList.remove("is-attacking");
+    void unit.offsetWidth;
+    unit.classList.add("is-attacking");
+    window.setTimeout(() => {
+      unit.classList.remove("is-attacking");
+    }, 380);
   }
 
   function ensureHealthBar(unit) {
@@ -348,7 +408,33 @@
     );
   }
 
-  function updateCombat() {
+  function unitsAreInCombat(a, b) {
+    if (!a?.isConnected || !b?.isConnected) return false;
+    const dist = distanceBetween(getUnitPosition(a), getUnitPosition(b));
+    return (
+      dist <= getAttackRangePercent(a) || dist <= getAttackRangePercent(b)
+    );
+  }
+
+  function canDeliverAttack(attacker, defender) {
+    if (!attacker?.isConnected || !defender?.isConnected) return false;
+    const dist = distanceBetween(
+      getUnitPosition(attacker),
+      getUnitPosition(defender)
+    );
+    return dist <= getAttackRangePercent(attacker);
+  }
+
+  function resolveUnitAttack(attacker, defender) {
+    if (!canDeliverAttack(attacker, defender)) return false;
+    const damage = rollAttackDamage(attacker);
+    if (damage <= 0) return false;
+    playAttackShake(attacker);
+    applyDamage(defender, damage);
+    return true;
+  }
+
+  function refreshEngagements() {
     const friends = getFriendlyCombatUnits();
     const foes = goblins.filter((goblin) => goblin.isConnected);
 
@@ -356,32 +442,51 @@
       if (unit.isConnected) setUnitEngaged(unit, false);
     });
 
-    const engagements = [];
-
     foes.forEach((goblin) => {
-      const goblinPos = getUnitPosition(goblin);
-      let best = null;
-
       friends.forEach((friend) => {
-        const dist = distanceBetween(goblinPos, getUnitPosition(friend));
-        if (dist <= COMBAT_RANGE && (!best || dist < best.dist)) {
-          best = { friend, dist };
+        if (unitsAreInCombat(goblin, friend)) {
+          setUnitEngaged(goblin, true);
+          setUnitEngaged(friend, true);
         }
       });
+    });
+  }
 
-      if (best) {
-        engagements.push([goblin, best.friend]);
-        setUnitEngaged(goblin, true);
-        setUnitEngaged(best.friend, true);
+  function findNearestAttackTarget(attacker, candidates) {
+    const from = getUnitPosition(attacker);
+    let best = null;
+
+    candidates.forEach((target) => {
+      if (!target.isConnected) return;
+      if (!canDeliverAttack(attacker, target)) return;
+      const dist = distanceBetween(from, getUnitPosition(target));
+      if (!best || dist < best.dist) {
+        best = { target, dist };
       }
     });
 
-    engagements.forEach(([goblin, friend]) => {
-      if (!goblin.isConnected || !friend.isConnected) return;
-      applyDamage(friend, getUnitStats(goblin).attack);
-      if (!friend.isConnected) return;
-      applyDamage(goblin, getUnitStats(friend).attack);
+    return best;
+  }
+
+  function resolveCombatRounds() {
+    const friends = getFriendlyCombatUnits();
+    const foes = goblins.filter((goblin) => goblin.isConnected);
+
+    foes.forEach((goblin) => {
+      if (!goblin.isConnected) return;
+      const nearest = findNearestAttackTarget(goblin, friends);
+      if (nearest) resolveUnitAttack(goblin, nearest.target);
     });
+
+    friends.forEach((friend) => {
+      if (!friend.isConnected) return;
+      const nearest = findNearestAttackTarget(friend, foes);
+      if (nearest) resolveUnitAttack(friend, nearest.target);
+    });
+  }
+
+  function updateCombat() {
+    refreshEngagements();
   }
 
   function spawnMilitaryUnit(type) {
@@ -550,11 +655,12 @@
 
   function findNearbyFriendly(goblin) {
     const from = getUnitPosition(goblin);
+    const meleeRange = getMeleeRangePercent();
     let best = null;
 
     getFriendlyCombatUnits().forEach((friend) => {
       const dist = distanceBetween(from, getUnitPosition(friend));
-      if (dist <= COMBAT_RANGE && (!best || dist < best.dist)) {
+      if (dist <= meleeRange && (!best || dist < best.dist)) {
         best = { friend, dist };
       }
     });
@@ -621,7 +727,14 @@
     }
 
     tickRecruitJobs();
-    updateCombat();
+    refreshEngagements();
+
+    combatCountdown -= 1;
+    if (combatCountdown <= 0) {
+      combatCountdown = COMBAT_INTERVAL_SECONDS;
+      resolveCombatRounds();
+      refreshEngagements();
+    }
   }
 
   function setExpanded(button, expanded) {
