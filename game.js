@@ -7,6 +7,8 @@
   const GOBLIN_FIRST_SPAWN_REMAINING = 9 * 60; // at the 9:00 mark
   const CASTLE_MAX_HP = 100;
   const CASTLE_POSITION = { left: 50, top: 48 };
+  // Outer stone ring on the map — goblins cannot pass inside this radius.
+  const CASTLE_WALL_RADIUS_PERCENT = 11;
   const GOBLIN_LEVEL_1 = {
     level: 1,
     label: "Goblin",
@@ -25,6 +27,7 @@
   const COMBAT_INTERVAL_SECONDS = 2;
   const MELEE_RANGE_INCHES = 0.45;
   const ARCHER_RANGE_INCHES = 2;
+  const FOOTMAN_AGGRO_INCHES = 2;
   const TOWER_RANGE_INCHES = 3;
   const UNIT_BODY_INCHES = 0.28;
   const CSS_PX_PER_INCH = 96;
@@ -265,6 +268,61 @@
     }
   }
 
+  function castleWallsStanding() {
+    return castleHp > 0;
+  }
+
+  function getCastleWallRadius(paddingPercent = 0) {
+    return CASTLE_WALL_RADIUS_PERCENT + paddingPercent;
+  }
+
+  function getCastleBlockerAtPoint(left, top, paddingPercent = 0) {
+    if (!castleWallsStanding()) return null;
+    const pos = CASTLE_POSITION;
+    const radius = getCastleWallRadius(paddingPercent);
+    const dist = distanceBetween({ left, top }, pos);
+    if (dist < radius) {
+      return { kind: "castle", dist, pos, radius };
+    }
+    return null;
+  }
+
+  function findMovementBlocker(left, top, paddingPercent = 0) {
+    const structureHit = findStructureAtPoint(left, top, paddingPercent);
+    const castleHit = getCastleBlockerAtPoint(left, top, paddingPercent);
+
+    if (structureHit && castleHit) {
+      return structureHit.dist <= castleHit.dist
+        ? { kind: "structure", ...structureHit }
+        : castleHit;
+    }
+    if (structureHit) return { kind: "structure", ...structureHit };
+    return castleHit;
+  }
+
+  function goblinInCastleMelee(goblin) {
+    if (!goblin?.isConnected || !castleWallsStanding()) return false;
+    const dist = distanceBetween(getUnitPosition(goblin), CASTLE_POSITION);
+    const reach =
+      CASTLE_WALL_RADIUS_PERCENT + getRangePercent(MELEE_RANGE_INCHES);
+    return dist <= reach;
+  }
+
+  function applyCastleDamage(amount) {
+    if (!castleWallsStanding() || amount <= 0) return;
+    castleHp = Math.max(0, castleHp - amount);
+    renderCastleHealth();
+  }
+
+  function resolveGoblinCastleAttack(goblin) {
+    if (!goblinInCastleMelee(goblin)) return false;
+    const damage = rollAttackDamage(goblin);
+    if (damage <= 0) return false;
+    playAttackShake(goblin);
+    applyCastleDamage(damage);
+    return true;
+  }
+
   function showVictory() {
     if (gameOver) return;
     gameOver = true;
@@ -389,6 +447,10 @@
       return getRangePercent(ARCHER_RANGE_INCHES);
     }
     return getMeleeRangePercent();
+  }
+
+  function getFootmanAggroRangePercent() {
+    return getRangePercent(FOOTMAN_AGGRO_INCHES);
   }
 
   function rollD6() {
@@ -516,7 +578,11 @@
       point.top,
       placeRadius * 0.85
     );
-    return !overlap;
+    if (overlap) return false;
+    if (getCastleBlockerAtPoint(point.left, point.top, placeRadius * 0.5)) {
+      return false;
+    }
+    return true;
   }
 
   function initUnitCombat(unit) {
@@ -592,6 +658,36 @@
         unit.isConnected &&
         (unit.dataset.unit === "villager" || isMilitaryUnit(unit))
     );
+  }
+
+  function getMilitaryUnits() {
+    return units.filter((unit) => unit.isConnected && isMilitaryUnit(unit));
+  }
+
+  function getFootmen() {
+    return units.filter(
+      (unit) => unit.isConnected && unit.dataset.unit === "footman"
+    );
+  }
+
+  function isGoblinEngagedWithMilitary(goblin) {
+    if (!goblin?.isConnected) return false;
+    return getMilitaryUnits().some((unit) => unitsAreInCombat(goblin, unit));
+  }
+
+  function findNearestMilitaryForGoblin(goblin) {
+    const from = getUnitPosition(goblin);
+    let best = null;
+
+    getMilitaryUnits().forEach((unit) => {
+      const pos = getUnitPosition(unit);
+      const dist = distanceBetween(from, pos);
+      if (!best || dist < best.dist) {
+        best = { unit, pos, dist };
+      }
+    });
+
+    return best;
   }
 
   function getEntityPosition(entity) {
@@ -715,14 +811,39 @@
 
   function resolveCombatRounds() {
     const friends = getFriendlyCombatUnits();
+    const military = getMilitaryUnits();
+    const villagerTargets = friends.filter(
+      (unit) => unit.dataset.unit === "villager"
+    );
     const foes = goblins.filter((goblin) => goblin.isConnected);
     const liveStructures = structures.filter((structure) => structure.isConnected);
 
     foes.forEach((goblin) => {
       if (!goblin.isConnected) return;
-      const nearestFriend = findNearestAttackTarget(goblin, friends, getUnitPosition);
-      if (nearestFriend) {
-        resolveUnitAttack(goblin, nearestFriend.target);
+
+      const nearestMilitary = findNearestAttackTarget(
+        goblin,
+        military,
+        getUnitPosition
+      );
+      if (nearestMilitary) {
+        resolveUnitAttack(goblin, nearestMilitary.target);
+        return;
+      }
+
+      // Engaged with a Footman/Archer/Knight (including archer range):
+      // cannot peel off to attack villagers.
+      if (isGoblinEngagedWithMilitary(goblin)) {
+        return;
+      }
+
+      const nearestVillager = findNearestAttackTarget(
+        goblin,
+        villagerTargets,
+        getUnitPosition
+      );
+      if (nearestVillager) {
+        resolveUnitAttack(goblin, nearestVillager.target);
         return;
       }
 
@@ -733,6 +854,11 @@
       );
       if (nearestStructure) {
         resolveUnitAttack(goblin, nearestStructure.target);
+        return;
+      }
+
+      if (goblinInCastleMelee(goblin)) {
+        resolveGoblinCastleAttack(goblin);
       }
     });
 
@@ -1062,6 +1188,18 @@
   }
 
   function getGoblinTarget(goblin) {
+    if (isGoblinEngagedWithMilitary(goblin)) {
+      const nearestMilitary = findNearestMilitaryForGoblin(goblin);
+      if (nearestMilitary) {
+        return {
+          left: nearestMilitary.pos.left,
+          top: nearestMilitary.pos.top,
+          kind: nearestMilitary.unit.dataset.unit || "military",
+          unit: nearestMilitary.unit,
+        };
+      }
+    }
+
     const from = getUnitPosition(goblin);
     const closestVillager = getClosestVillager(from);
     const castleDist = distanceBetween(from, CASTLE_POSITION);
@@ -1083,15 +1221,33 @@
     };
   }
 
-  function findNearbyFriendly(goblin) {
+  function findNearbyMilitaryMelee(goblin) {
     const from = getUnitPosition(goblin);
     const meleeRange = getMeleeRangePercent();
     let best = null;
 
-    getFriendlyCombatUnits().forEach((friend) => {
-      const dist = distanceBetween(from, getUnitPosition(friend));
+    getMilitaryUnits().forEach((unit) => {
+      const dist = distanceBetween(from, getUnitPosition(unit));
       if (dist <= meleeRange && (!best || dist < best.dist)) {
-        best = { friend, dist };
+        best = { friend: unit, dist };
+      }
+    });
+
+    return best;
+  }
+
+  function findNearbyVillagerMelee(goblin) {
+    if (isGoblinEngagedWithMilitary(goblin)) return null;
+
+    const from = getUnitPosition(goblin);
+    const meleeRange = getMeleeRangePercent();
+    let best = null;
+
+    villagers.forEach((villager) => {
+      if (!villager.isConnected) return;
+      const dist = distanceBetween(from, getUnitPosition(villager));
+      if (dist <= meleeRange && (!best || dist < best.dist)) {
+        best = { friend: villager, dist };
       }
     });
 
@@ -1107,9 +1263,21 @@
       if (!goblinInStructureMelee(goblin, structure)) return;
       const dist = distanceBetween(from, getStructurePosition(structure));
       if (!best || dist < best.dist) {
-        best = { structure, dist };
+        best = { kind: "structure", structure, dist, pos: getStructurePosition(structure) };
       }
     });
+
+    if (goblinInCastleMelee(goblin)) {
+      const dist = distanceBetween(from, CASTLE_POSITION);
+      if (!best || dist < best.dist) {
+        best = {
+          kind: "castle",
+          structure: null,
+          dist,
+          pos: CASTLE_POSITION,
+        };
+      }
+    }
 
     return best;
   }
@@ -1122,28 +1290,37 @@
       if (!goblin.isConnected) return;
 
       const from = getUnitPosition(goblin);
-      const nearbyFriendly = findNearbyFriendly(goblin);
+      const nearbyMilitary = findNearbyMilitaryMelee(goblin);
 
-      if (nearbyFriendly) {
-        goblin.dataset.target = nearbyFriendly.friend.dataset.unit || "unit";
+      if (nearbyMilitary) {
+        goblin.dataset.target = nearbyMilitary.friend.dataset.unit || "military";
         goblin.classList.remove("is-walking");
         goblin.dataset.frame = "0";
         goblin.classList.toggle(
           "is-flipped",
-          getUnitPosition(nearbyFriendly.friend).left < from.left
+          getUnitPosition(nearbyMilitary.friend).left < from.left
+        );
+        return;
+      }
+
+      const nearbyVillager = findNearbyVillagerMelee(goblin);
+      if (nearbyVillager) {
+        goblin.dataset.target = "villager";
+        goblin.classList.remove("is-walking");
+        goblin.dataset.frame = "0";
+        goblin.classList.toggle(
+          "is-flipped",
+          getUnitPosition(nearbyVillager.friend).left < from.left
         );
         return;
       }
 
       const nearbyStructure = findNearbyStructure(goblin);
       if (nearbyStructure) {
-        goblin.dataset.target = "structure";
+        goblin.dataset.target = nearbyStructure.kind;
         goblin.classList.remove("is-walking");
         goblin.dataset.frame = "0";
-        goblin.classList.toggle(
-          "is-flipped",
-          getStructurePosition(nearbyStructure.structure).left < from.left
-        );
+        goblin.classList.toggle("is-flipped", nearbyStructure.pos.left < from.left);
         return;
       }
 
@@ -1154,7 +1331,7 @@
 
       goblin.dataset.target = target.kind;
 
-      if (dist < 1.5) {
+      if (dist < 0.4) {
         goblin.classList.remove("is-walking");
         goblin.dataset.frame = "0";
         return;
@@ -1163,7 +1340,7 @@
       const ratio = Math.min(1, step / dist);
       const nextLeft = from.left + dx * ratio;
       const nextTop = from.top + dy * ratio;
-      const blocker = findStructureAtPoint(nextLeft, nextTop, bodyPad);
+      const blocker = findMovementBlocker(nextLeft, nextTop, bodyPad);
 
       if (blocker) {
         const stopDist = blocker.radius;
@@ -1179,7 +1356,7 @@
           goblin.classList.remove("is-walking");
           goblin.dataset.frame = "0";
         }
-        goblin.dataset.target = "structure";
+        goblin.dataset.target = blocker.kind;
         goblin.classList.toggle("is-flipped", blocker.pos.left < from.left);
         return;
       }
@@ -1301,8 +1478,78 @@
   function issueMilitaryMove(unit, destination) {
     if (!isMilitaryUnit(unit) || !destination) return;
     unit.dataset.task = "move";
+    unit.dataset.autoEngage = "false";
     clearWorking(unit);
     moveUnit(unit, destination);
+  }
+
+  function findNearestGoblinInAggro(footman) {
+    const from = getUnitPosition(footman);
+    const aggroRange = getFootmanAggroRangePercent();
+    let best = null;
+
+    goblins.forEach((goblin) => {
+      if (!goblin.isConnected) return;
+      const pos = getUnitPosition(goblin);
+      const dist = distanceBetween(from, pos);
+      if (dist <= aggroRange && (!best || dist < best.dist)) {
+        best = { goblin, pos, dist };
+      }
+    });
+
+    return best;
+  }
+
+  function stepUnitToward(unit, destination, dt) {
+    const from = getUnitPosition(unit);
+    const dx = destination.left - from.left;
+    const dy = destination.top - from.top;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.35) {
+      stopUnit(unit);
+      return dist;
+    }
+
+    activeMoves.delete(unit);
+    const step = (MOVE_SPEED * dt) / 1000;
+    const ratio = Math.min(1, step / dist);
+    unit.style.left = `${from.left + dx * ratio}%`;
+    unit.style.top = `${from.top + dy * ratio}%`;
+    unit.classList.add("is-walking");
+    unit.classList.toggle("is-flipped", dx < 0);
+    unit.dataset.frame = String(
+      1 + (Math.floor(performance.now() / WALK_FRAME_MS) % 3)
+    );
+    return dist;
+  }
+
+  function updateFootmanAggro(dt) {
+    const meleeRange = getMeleeRangePercent();
+
+    getFootmen().forEach((footman) => {
+      const target = findNearestGoblinInAggro(footman);
+      if (!target) {
+        if (footman.dataset.autoEngage === "true") {
+          footman.dataset.autoEngage = "false";
+          stopUnit(footman);
+        }
+        return;
+      }
+
+      footman.dataset.autoEngage = "true";
+      footman.dataset.task = "engage";
+
+      if (target.dist <= meleeRange) {
+        stopUnit(footman);
+        footman.classList.toggle(
+          "is-flipped",
+          target.pos.left < getUnitPosition(footman).left
+        );
+        return;
+      }
+
+      stepUnitToward(footman, target.pos, dt);
+    });
   }
 
   function updateMoveCursor() {
@@ -1477,6 +1724,7 @@
     const dt = Math.min(50, now - lastFrameTime);
     lastFrameTime = now;
     if (!gameOver) {
+      updateFootmanAggro(dt);
       updateMoves(now);
       updateGoblins(dt);
     }
