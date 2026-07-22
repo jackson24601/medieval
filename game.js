@@ -49,7 +49,7 @@
       wood: 5,
       stone: 0,
       seconds: 30,
-      sprite: "assets/units/footman.svg",
+      sprite: "assets/units/footman.png",
     },
     archer: {
       label: "Archer",
@@ -57,7 +57,7 @@
       wood: 25,
       stone: 0,
       seconds: 45,
-      sprite: "assets/units/archer.svg",
+      sprite: "assets/units/archer.png",
     },
     knight: {
       label: "Knight",
@@ -65,9 +65,11 @@
       wood: 25,
       stone: 0,
       seconds: 120,
-      sprite: "assets/units/knight.svg",
+      sprite: "assets/units/knight.png",
     },
   };
+
+  const MILITARY_TYPES = new Set(["footman", "archer", "knight"]);
 
   const SPAWN_POINTS = [
     { left: 46, top: 64 },
@@ -344,6 +346,10 @@
     if (closeBtn) closeBtn.focus();
   }
 
+  function isMilitaryUnit(unit) {
+    return Boolean(unit && MILITARY_TYPES.has(unit.dataset.unit));
+  }
+
   function bindUnitClick(unit) {
     unit.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -355,12 +361,42 @@
     });
   }
 
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function mapClickToPercent(event) {
+    const gameEl = document.querySelector(".game");
+    if (!gameEl) return null;
+    const rect = gameEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+
+    return {
+      left: clamp(((event.clientX - rect.left) / rect.width) * 100, 3, 97),
+      top: clamp(((event.clientY - rect.top) / rect.height) * 100, 4, 86),
+    };
+  }
+
+  function issueMilitaryMove(unit, destination) {
+    if (!isMilitaryUnit(unit) || !destination) return;
+    unit.dataset.task = "move";
+    clearWorking(unit);
+    moveUnit(unit, destination);
+  }
+
+  function updateMoveCursor() {
+    document
+      .querySelector(".game")
+      ?.classList.toggle("is-issuing-move", isMilitaryUnit(selectedUnit));
+  }
+
   function clearSelection() {
     units.forEach((unit) => {
       unit.classList.remove("is-selected");
       unit.setAttribute("aria-pressed", "false");
     });
     selectedUnit = null;
+    updateMoveCursor();
   }
 
   function selectUnit(unit) {
@@ -369,6 +405,7 @@
     unit.classList.add("is-selected");
     unit.setAttribute("aria-pressed", "true");
     selectedUnit = unit;
+    updateMoveCursor();
   }
 
   function openVillagerMenu(unit) {
@@ -581,8 +618,18 @@
     if (event.target.closest(".unit")) return;
     if (event.target.closest(".hud")) return;
     if (event.target.closest(".popup")) return;
-    if (!openMenu) {
-      clearSelection();
+    if (event.target.closest(".recruiting-queue")) return;
+
+    if (openMenu) return;
+
+    if (isMilitaryUnit(selectedUnit)) {
+      const destination = mapClickToPercent(event);
+      if (destination) {
+        issueMilitaryMove(selectedUnit, destination);
+      }
+      return;
     }
+
+    clearSelection();
   });
 })();
