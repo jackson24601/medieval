@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Fraunces:opsz,wght@9..144,500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=dice-combat" />
+    <link rel="stylesheet" href="styles.css?v=build2" />
   </head>
   <body class="game-body">
     <main class="game" aria-label="Round one battlefield">
@@ -28,7 +28,15 @@
         class="recruiting-queue"
         id="recruiting-queue"
         aria-live="polite"
-        aria-label="Recruiting queue"
+        aria-label="Recruiting and building queue"
+      ></div>
+
+      <div class="structures" id="structures-layer" aria-label="Structures"></div>
+      <div
+        class="build-ghost"
+        id="build-ghost"
+        hidden
+        aria-hidden="true"
       ></div>
 
       <div class="units" id="units-layer" aria-label="Units">
@@ -168,21 +176,29 @@
           </header>
           <ul class="popup__list">
             <li>
-              <button type="button" class="popup__option" disabled>
+              <button
+                type="button"
+                class="popup__option"
+                data-build="palisade"
+              >
                 Wooden Palisade
-                <span class="popup__hint">Coming soon</span>
+                <span class="popup__hint">50 Wood · 30s</span>
               </button>
             </li>
             <li>
-              <button type="button" class="popup__option" disabled>
+              <button type="button" class="popup__option" data-build="wall">
                 Stone Wall
-                <span class="popup__hint">Coming soon</span>
+                <span class="popup__hint">25 Stone · 45s</span>
               </button>
             </li>
             <li>
-              <button type="button" class="popup__option" disabled>
+              <button
+                type="button"
+                class="popup__option"
+                data-build="watchtower"
+              >
                 Watchtower
-                <span class="popup__hint">Coming soon</span>
+                <span class="popup__hint">100 Wood · 50 Stone · 1m</span>
               </button>
             </li>
           </ul>
@@ -338,6 +354,6 @@
       </footer>
     </main>
 
-    <script src="game.js?v=dice-combat" defer></script>
+    <script src="game.js?v=build2" defer></script>
   </body>
 </html>
