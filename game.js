@@ -7,6 +7,8 @@
   const GOBLIN_FIRST_SPAWN_REMAINING = 9 * 60; // at the 9:00 mark
   const CASTLE_MAX_HP = 100;
   const CASTLE_POSITION = { left: 50, top: 48 };
+  // Outer stone ring on the map — goblins cannot pass inside this radius.
+  const CASTLE_WALL_RADIUS_PERCENT = 11;
   const GOBLIN_LEVEL_1 = {
     level: 1,
     label: "Goblin",
@@ -266,6 +268,61 @@
     }
   }
 
+  function castleWallsStanding() {
+    return castleHp > 0;
+  }
+
+  function getCastleWallRadius(paddingPercent = 0) {
+    return CASTLE_WALL_RADIUS_PERCENT + paddingPercent;
+  }
+
+  function getCastleBlockerAtPoint(left, top, paddingPercent = 0) {
+    if (!castleWallsStanding()) return null;
+    const pos = CASTLE_POSITION;
+    const radius = getCastleWallRadius(paddingPercent);
+    const dist = distanceBetween({ left, top }, pos);
+    if (dist < radius) {
+      return { kind: "castle", dist, pos, radius };
+    }
+    return null;
+  }
+
+  function findMovementBlocker(left, top, paddingPercent = 0) {
+    const structureHit = findStructureAtPoint(left, top, paddingPercent);
+    const castleHit = getCastleBlockerAtPoint(left, top, paddingPercent);
+
+    if (structureHit && castleHit) {
+      return structureHit.dist <= castleHit.dist
+        ? { kind: "structure", ...structureHit }
+        : castleHit;
+    }
+    if (structureHit) return { kind: "structure", ...structureHit };
+    return castleHit;
+  }
+
+  function goblinInCastleMelee(goblin) {
+    if (!goblin?.isConnected || !castleWallsStanding()) return false;
+    const dist = distanceBetween(getUnitPosition(goblin), CASTLE_POSITION);
+    const reach =
+      CASTLE_WALL_RADIUS_PERCENT + getRangePercent(MELEE_RANGE_INCHES);
+    return dist <= reach;
+  }
+
+  function applyCastleDamage(amount) {
+    if (!castleWallsStanding() || amount <= 0) return;
+    castleHp = Math.max(0, castleHp - amount);
+    renderCastleHealth();
+  }
+
+  function resolveGoblinCastleAttack(goblin) {
+    if (!goblinInCastleMelee(goblin)) return false;
+    const damage = rollAttackDamage(goblin);
+    if (damage <= 0) return false;
+    playAttackShake(goblin);
+    applyCastleDamage(damage);
+    return true;
+  }
+
   function showVictory() {
     if (gameOver) return;
     gameOver = true;
@@ -521,7 +578,11 @@
       point.top,
       placeRadius * 0.85
     );
-    return !overlap;
+    if (overlap) return false;
+    if (getCastleBlockerAtPoint(point.left, point.top, placeRadius * 0.5)) {
+      return false;
+    }
+    return true;
   }
 
   function initUnitCombat(unit) {
@@ -793,6 +854,11 @@
       );
       if (nearestStructure) {
         resolveUnitAttack(goblin, nearestStructure.target);
+        return;
+      }
+
+      if (goblinInCastleMelee(goblin)) {
+        resolveGoblinCastleAttack(goblin);
       }
     });
 
@@ -1197,9 +1263,21 @@
       if (!goblinInStructureMelee(goblin, structure)) return;
       const dist = distanceBetween(from, getStructurePosition(structure));
       if (!best || dist < best.dist) {
-        best = { structure, dist };
+        best = { kind: "structure", structure, dist, pos: getStructurePosition(structure) };
       }
     });
+
+    if (goblinInCastleMelee(goblin)) {
+      const dist = distanceBetween(from, CASTLE_POSITION);
+      if (!best || dist < best.dist) {
+        best = {
+          kind: "castle",
+          structure: null,
+          dist,
+          pos: CASTLE_POSITION,
+        };
+      }
+    }
 
     return best;
   }
@@ -1239,13 +1317,10 @@
 
       const nearbyStructure = findNearbyStructure(goblin);
       if (nearbyStructure) {
-        goblin.dataset.target = "structure";
+        goblin.dataset.target = nearbyStructure.kind;
         goblin.classList.remove("is-walking");
         goblin.dataset.frame = "0";
-        goblin.classList.toggle(
-          "is-flipped",
-          getStructurePosition(nearbyStructure.structure).left < from.left
-        );
+        goblin.classList.toggle("is-flipped", nearbyStructure.pos.left < from.left);
         return;
       }
 
@@ -1256,7 +1331,7 @@
 
       goblin.dataset.target = target.kind;
 
-      if (dist < 1.5) {
+      if (dist < 0.4) {
         goblin.classList.remove("is-walking");
         goblin.dataset.frame = "0";
         return;
@@ -1265,7 +1340,7 @@
       const ratio = Math.min(1, step / dist);
       const nextLeft = from.left + dx * ratio;
       const nextTop = from.top + dy * ratio;
-      const blocker = findStructureAtPoint(nextLeft, nextTop, bodyPad);
+      const blocker = findMovementBlocker(nextLeft, nextTop, bodyPad);
 
       if (blocker) {
         const stopDist = blocker.radius;
@@ -1281,7 +1356,7 @@
           goblin.classList.remove("is-walking");
           goblin.dataset.frame = "0";
         }
-        goblin.dataset.target = "structure";
+        goblin.dataset.target = blocker.kind;
         goblin.classList.toggle("is-flipped", blocker.pos.left < from.left);
         return;
       }
