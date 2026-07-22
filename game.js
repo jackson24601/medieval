@@ -4,18 +4,49 @@
   const GOBLIN_SPEED = 8; // map percent per second
   const WALK_FRAME_MS = 140;
   const GATHER_INTERVAL_SECONDS = 10;
-  const GOBLIN_FIRST_SPAWN_REMAINING = 9 * 60; // at the 9:00 mark
-  const GOBLIN_FINAL_WAVE_REMAINING = 30; // four goblins from all sides
   const CASTLE_MAX_HP = 100;
   const CASTLE_POSITION = { left: 50, top: 48 };
   // Outer stone ring on the map — goblins cannot pass inside this radius.
   const CASTLE_WALL_RADIUS_PERCENT = 11;
-  const GOBLIN_LEVEL_1 = {
-    level: 1,
-    label: "Goblin",
-    sprite: "assets/units/goblin-1.png",
-    maxHp: 5,
+
+  const GOBLIN_LEVELS = {
+    1: {
+      level: 1,
+      label: "Goblin",
+      sprite: "assets/units/goblin-1.png",
+      maxHp: 5,
+      hitOn: 2,
+      damage: 1,
+    },
+    2: {
+      level: 2,
+      label: "Goblin",
+      sprite: "assets/units/goblin-2.png",
+      maxHp: 15,
+      hitOn: 4,
+      damage: 2,
+    },
   };
+
+  const ROUND_CONFIGS = {
+    1: {
+      level1: { firstAt: 9 * 60, interval: 60 },
+      level2: null,
+      finalWaveAt: 30,
+      nextRoundHref: "round-2.html",
+    },
+    2: {
+      level1: { firstAt: 9 * 60 + 30, interval: 30 },
+      level2: { firstAt: 9 * 60, interval: 60 },
+      finalWaveAt: 30,
+      nextRoundHref: null,
+    },
+  };
+
+  const ROUND_NUMBER = Number(
+    document.querySelector(".game")?.dataset.round || 1
+  );
+  const ROUND_CONFIG = ROUND_CONFIGS[ROUND_NUMBER] || ROUND_CONFIGS[1];
 
   const UNIT_STATS = {
     villager: { maxHp: 5 },
@@ -330,10 +361,20 @@
     cancelPlacement();
     closeMenus();
     clearSelection();
+    if (nextRoundButton) {
+      if (ROUND_CONFIG.nextRoundHref) {
+        nextRoundButton.href = ROUND_CONFIG.nextRoundHref;
+        nextRoundButton.hidden = false;
+      } else {
+        nextRoundButton.hidden = true;
+      }
+    }
     if (victoryOverlay) {
       victoryOverlay.hidden = false;
       document.querySelector(".game")?.classList.add("is-victory");
-      nextRoundButton?.focus();
+      if (nextRoundButton && !nextRoundButton.hidden) {
+        nextRoundButton.focus();
+      }
     }
   }
 
@@ -422,13 +463,15 @@
     };
   }
 
+  function getGoblinLevelConfig(level) {
+    return GOBLIN_LEVELS[level] || GOBLIN_LEVELS[1];
+  }
+
   function getUnitStats(unit) {
     if (!unit) return UNIT_STATS.villager;
     if (unit.dataset.unit === "goblin") {
       const level = Number(unit.dataset.goblinLevel || 1);
-      if (level === 1) {
-        return { maxHp: GOBLIN_LEVEL_1.maxHp };
-      }
+      return { maxHp: getGoblinLevelConfig(level).maxHp };
     }
     return UNIT_STATS[unit.dataset.unit] || UNIT_STATS.villager;
   }
@@ -474,10 +517,8 @@
 
     if (type === "goblin") {
       const level = Number(unit.dataset.goblinLevel || 1);
-      if (level === 1) {
-        return roll >= 2 ? 1 : 0;
-      }
-      return 0;
+      const config = getGoblinLevelConfig(level);
+      return roll >= config.hitOn ? config.damage : 0;
     }
 
     if (type === "footman" || type === "archer") {
@@ -1134,23 +1175,24 @@
   }
 
   function spawnGoblin(level = 1, spawnPoint = null) {
-    if (!unitsLayer || level !== 1) return null;
+    const config = getGoblinLevelConfig(level);
+    if (!unitsLayer || !config) return null;
 
     const spawn = spawnPoint || randomEdgeSpawn();
     const unitId = `goblin-${nextGoblinId++}`;
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "unit unit--goblin unit--goblin-1";
+    button.className = `unit unit--goblin unit--goblin-${level}`;
     button.dataset.unit = "goblin";
     button.dataset.goblinLevel = String(level);
     button.dataset.unitId = unitId;
     button.setAttribute("aria-pressed", "false");
-    button.setAttribute("aria-label", `${GOBLIN_LEVEL_1.label} Level ${level}`);
+    button.setAttribute("aria-label", `${config.label} Level ${level}`);
     button.style.left = `${spawn.left}%`;
     button.style.top = `${spawn.top}%`;
     button.innerHTML = `
       <span class="unit__sprite unit__sprite--image" aria-hidden="true">
-        <img src="${GOBLIN_LEVEL_1.sprite}" alt="" draggable="false" />
+        <img src="${config.sprite}" alt="" draggable="false" />
       </span>
     `;
 
@@ -1168,16 +1210,22 @@
     }
   }
 
-  function shouldSpawnGoblin(secondsLeft) {
-    return (
-      secondsLeft > 0 &&
-      secondsLeft <= GOBLIN_FIRST_SPAWN_REMAINING &&
-      secondsLeft % 60 === 0
-    );
+  function shouldSpawnOnInterval(secondsLeft, schedule) {
+    if (!schedule || secondsLeft <= 0) return false;
+    if (secondsLeft > schedule.firstAt) return false;
+    return (schedule.firstAt - secondsLeft) % schedule.interval === 0;
+  }
+
+  function shouldSpawnLevel1Goblin(secondsLeft) {
+    return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level1);
+  }
+
+  function shouldSpawnLevel2Goblin(secondsLeft) {
+    return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level2);
   }
 
   function shouldSpawnFinalGoblinWave(secondsLeft) {
-    return secondsLeft === GOBLIN_FINAL_WAVE_REMAINING;
+    return secondsLeft === ROUND_CONFIG.finalWaveAt;
   }
 
   function distanceBetween(a, b) {
@@ -1388,11 +1436,15 @@
     if (remainingSeconds > 0) {
       remainingSeconds -= 1;
       updateTimer();
-      if (shouldSpawnGoblin(remainingSeconds)) {
-        spawnGoblin(1);
-      }
       if (shouldSpawnFinalGoblinWave(remainingSeconds)) {
         spawnGoblinsFromAllDirections(1);
+      } else {
+        if (shouldSpawnLevel1Goblin(remainingSeconds)) {
+          spawnGoblin(1);
+        }
+        if (shouldSpawnLevel2Goblin(remainingSeconds)) {
+          spawnGoblin(2);
+        }
       }
     } else {
       updateTimer();
