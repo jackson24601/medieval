@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Fraunces:opsz,wght@9..144,500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=realistic-villagers" />
+    <link rel="stylesheet" href="styles.css?v=resources" />
   </head>
   <body class="game-body">
     <main class="game" aria-label="Round one battlefield">
@@ -172,6 +172,38 @@
 
       <div
         class="popup"
+        id="resources-menu"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="resources-menu-title"
+        hidden
+      >
+        <div class="popup__panel">
+          <header class="popup__header">
+            <h2 class="popup__title" id="resources-menu-title">Resources</h2>
+            <button type="button" class="popup__close" data-close-popup>
+              Close
+            </button>
+          </header>
+          <ul class="resource-list">
+            <li class="resource-list__item">
+              <span class="resource-list__label">Food</span>
+              <span class="resource-list__value" id="resource-food">100</span>
+            </li>
+            <li class="resource-list__item">
+              <span class="resource-list__label">Wood</span>
+              <span class="resource-list__value" id="resource-wood">50</span>
+            </li>
+            <li class="resource-list__item">
+              <span class="resource-list__label">Stone</span>
+              <span class="resource-list__value" id="resource-stone">25</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div
+        class="popup"
         id="villager-menu"
         role="dialog"
         aria-modal="true"
@@ -273,10 +305,20 @@
           >
             Build
           </button>
+          <button
+            type="button"
+            class="hud__button"
+            id="resources-button"
+            aria-haspopup="dialog"
+            aria-controls="resources-menu"
+            aria-expanded="false"
+          >
+            Resources
+          </button>
         </div>
       </footer>
     </main>
 
-    <script src="game.js?v=realistic-villagers" defer></script>
+    <script src="game.js?v=resources" defer></script>
   </body>
 </html>
