@@ -42,6 +42,45 @@
     "chop-wood": { resource: "wood", amount: 2 },
   };
 
+  const RECRUIT_TYPES = {
+    footman: {
+      label: "Footman",
+      food: 30,
+      wood: 5,
+      stone: 0,
+      seconds: 30,
+      sprite: "assets/units/footman.svg",
+    },
+    archer: {
+      label: "Archer",
+      food: 75,
+      wood: 25,
+      stone: 0,
+      seconds: 45,
+      sprite: "assets/units/archer.svg",
+    },
+    knight: {
+      label: "Knight",
+      food: 250,
+      wood: 25,
+      stone: 0,
+      seconds: 120,
+      sprite: "assets/units/knight.svg",
+    },
+  };
+
+  const SPAWN_POINTS = [
+    { left: 46, top: 64 },
+    { left: 50, top: 66 },
+    { left: 54, top: 64 },
+    { left: 42, top: 66 },
+    { left: 58, top: 66 },
+    { left: 48, top: 70 },
+    { left: 52, top: 70 },
+    { left: 44, top: 62 },
+    { left: 56, top: 62 },
+  ];
+
   const timerEl = document.getElementById("round-timer");
   const recruitButton = document.getElementById("recruit-button");
   const buildButton = document.getElementById("build-button");
@@ -54,6 +93,8 @@
   const resourceFoodEl = document.getElementById("resource-food");
   const resourceWoodEl = document.getElementById("resource-wood");
   const resourceStoneEl = document.getElementById("resource-stone");
+  const unitsLayer = document.getElementById("units-layer");
+  const recruitingQueueEl = document.getElementById("recruiting-queue");
 
   const resources = {
     food: 100,
@@ -65,6 +106,8 @@
   let gatherCountdown = GATHER_INTERVAL_SECONDS;
   let openMenu = null;
   let selectedUnit = null;
+  let nextUnitId = 1;
+  let nextRecruitId = 1;
 
   const units = Array.from(document.querySelectorAll(".unit"));
   const villagers = units.filter((unit) => unit.dataset.unit === "villager");
@@ -75,11 +118,30 @@
     Boolean
   );
   const activeMoves = new Map();
+  const recruitJobs = [];
+
+  function canAfford(cost) {
+    return (
+      resources.food >= cost.food &&
+      resources.wood >= cost.wood &&
+      resources.stone >= (cost.stone || 0)
+    );
+  }
+
+  function updateRecruitAffordability() {
+    recruitMenu?.querySelectorAll("[data-recruit]").forEach((button) => {
+      const type = button.getAttribute("data-recruit");
+      const config = RECRUIT_TYPES[type];
+      if (!config) return;
+      button.disabled = !canAfford(config);
+    });
+  }
 
   function renderResources() {
     if (resourceFoodEl) resourceFoodEl.textContent = String(resources.food);
     if (resourceWoodEl) resourceWoodEl.textContent = String(resources.wood);
     if (resourceStoneEl) resourceStoneEl.textContent = String(resources.stone);
+    updateRecruitAffordability();
   }
 
   function formatTime(totalSeconds) {
@@ -111,6 +173,122 @@
     if (gained) renderResources();
   }
 
+  function formatRecruitClock(totalSeconds) {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  function createRecruitCard(job) {
+    const card = document.createElement("div");
+    card.className = "recruiting-card";
+    card.dataset.recruitId = String(job.id);
+    card.innerHTML = `
+      <div class="recruiting-card__clock" aria-hidden="true"></div>
+      <div class="recruiting-card__copy">
+        <div class="recruiting-card__title">Recruiting</div>
+        <div class="recruiting-card__unit">${job.label}</div>
+        <div class="recruiting-card__time">${formatRecruitClock(job.remaining)}</div>
+      </div>
+    `;
+    return card;
+  }
+
+  function updateRecruitCard(job) {
+    const timeEl = job.card.querySelector(".recruiting-card__time");
+    if (timeEl) timeEl.textContent = formatRecruitClock(job.remaining);
+  }
+
+  function pickSpawnPoint() {
+    const occupied = new Set(
+      units.map((unit) => {
+        const pos = getUnitPosition(unit);
+        return `${Math.round(pos.left)}:${Math.round(pos.top)}`;
+      })
+    );
+
+    const free = SPAWN_POINTS.find(
+      (point) => !occupied.has(`${point.left}:${point.top}`)
+    );
+    if (free) return { ...free };
+
+    const index = units.length % SPAWN_POINTS.length;
+    const base = SPAWN_POINTS[index];
+    return {
+      left: base.left + (units.length % 3) * 2,
+      top: base.top + Math.floor(units.length / 3),
+    };
+  }
+
+  function spawnMilitaryUnit(type) {
+    const config = RECRUIT_TYPES[type];
+    if (!config || !unitsLayer) return null;
+
+    const spawn = pickSpawnPoint();
+    const unitId = `military-${nextUnitId++}`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `unit unit--military unit--${type}`;
+    button.dataset.unit = type;
+    button.dataset.unitId = unitId;
+    button.setAttribute("aria-pressed", "false");
+    button.setAttribute("aria-label", config.label);
+    button.style.left = `${spawn.left}%`;
+    button.style.top = `${spawn.top}%`;
+    button.innerHTML = `
+      <span class="unit__sprite unit__sprite--image" aria-hidden="true">
+        <img src="${config.sprite}" alt="" draggable="false" />
+      </span>
+    `;
+
+    unitsLayer.appendChild(button);
+    units.push(button);
+    bindUnitClick(button);
+    return button;
+  }
+
+  function completeRecruitJob(job) {
+    job.card.remove();
+    const index = recruitJobs.indexOf(job);
+    if (index >= 0) recruitJobs.splice(index, 1);
+    spawnMilitaryUnit(job.type);
+  }
+
+  function tickRecruitJobs() {
+    if (!recruitJobs.length) return;
+
+    [...recruitJobs].forEach((job) => {
+      job.remaining -= 1;
+      if (job.remaining <= 0) {
+        completeRecruitJob(job);
+        return;
+      }
+      updateRecruitCard(job);
+    });
+  }
+
+  function startRecruit(type) {
+    const config = RECRUIT_TYPES[type];
+    if (!config || !canAfford(config) || !recruitingQueueEl) return false;
+
+    resources.food -= config.food;
+    resources.wood -= config.wood;
+    resources.stone -= config.stone || 0;
+    renderResources();
+
+    const job = {
+      id: nextRecruitId++,
+      type,
+      label: config.label,
+      remaining: config.seconds,
+      card: null,
+    };
+    job.card = createRecruitCard(job);
+    recruitingQueueEl.appendChild(job.card);
+    recruitJobs.push(job);
+    return true;
+  }
+
   function tick() {
     if (remainingSeconds > 0) {
       remainingSeconds -= 1;
@@ -124,6 +302,8 @@
       gatherCountdown = GATHER_INTERVAL_SECONDS;
       collectResources();
     }
+
+    tickRecruitJobs();
   }
 
   function setExpanded(button, expanded) {
@@ -159,8 +339,20 @@
     showBackdrop();
     if (button) setExpanded(button, true);
     openMenu = menu;
+    if (menu === recruitMenu) updateRecruitAffordability();
     const closeBtn = menu.querySelector("[data-close-popup]");
     if (closeBtn) closeBtn.focus();
+  }
+
+  function bindUnitClick(unit) {
+    unit.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (unit.dataset.unit === "villager") {
+        openVillagerMenu(unit);
+        return;
+      }
+      selectUnit(unit);
+    });
   }
 
   function clearSelection() {
@@ -366,16 +558,7 @@
     }
   });
 
-  units.forEach((unit) => {
-    unit.addEventListener("click", (event) => {
-      event.stopPropagation();
-      if (unit.dataset.unit === "villager") {
-        openVillagerMenu(unit);
-        return;
-      }
-      selectUnit(unit);
-    });
-  });
+  units.forEach((unit) => bindUnitClick(unit));
 
   villagerMenu?.querySelectorAll("[data-villager-action]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -383,6 +566,14 @@
       const action = button.getAttribute("data-villager-action");
       assignVillagerTask(selectedUnit, action);
       closeMenus();
+    });
+  });
+
+  recruitMenu?.querySelectorAll("[data-recruit]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const type = button.getAttribute("data-recruit");
+      if (!type || button.disabled) return;
+      startRecruit(type);
     });
   });
 
