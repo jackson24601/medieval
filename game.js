@@ -23,18 +23,40 @@
   const timerEl = document.getElementById("round-timer");
   const recruitButton = document.getElementById("recruit-button");
   const buildButton = document.getElementById("build-button");
+  const resourcesButton = document.getElementById("resources-button");
   const recruitMenu = document.getElementById("recruit-menu");
   const buildMenu = document.getElementById("build-menu");
+  const resourcesMenu = document.getElementById("resources-menu");
   const villagerMenu = document.getElementById("villager-menu");
   const backdrop = document.getElementById("popup-backdrop");
+  const resourceFoodEl = document.getElementById("resource-food");
+  const resourceWoodEl = document.getElementById("resource-wood");
+  const resourceStoneEl = document.getElementById("resource-stone");
+
+  const resources = {
+    food: 100,
+    wood: 50,
+    stone: 25,
+  };
 
   let remainingSeconds = ROUND_SECONDS;
   let openMenu = null;
   let selectedUnit = null;
 
   const units = Array.from(document.querySelectorAll(".unit"));
-  const allMenus = [recruitMenu, buildMenu, villagerMenu].filter(Boolean);
+  const allMenus = [recruitMenu, buildMenu, resourcesMenu, villagerMenu].filter(
+    Boolean
+  );
+  const hudMenuButtons = [recruitButton, buildButton, resourcesButton].filter(
+    Boolean
+  );
   const activeMoves = new Map();
+
+  function renderResources() {
+    if (resourceFoodEl) resourceFoodEl.textContent = String(resources.food);
+    if (resourceWoodEl) resourceWoodEl.textContent = String(resources.wood);
+    if (resourceStoneEl) resourceStoneEl.textContent = String(resources.stone);
+  }
 
   function formatTime(totalSeconds) {
     const minutes = Math.floor(totalSeconds / 60);
@@ -72,8 +94,7 @@
       backdrop.hidden = true;
       backdrop.setAttribute("aria-hidden", "true");
     }
-    setExpanded(recruitButton, false);
-    setExpanded(buildButton, false);
+    hudMenuButtons.forEach((button) => setExpanded(button, false));
     openMenu = null;
   }
 
@@ -214,6 +235,7 @@
   }
 
   updateTimer();
+  renderResources();
   window.setInterval(tick, 1000);
   requestAnimationFrame(animationLoop);
 
@@ -223,6 +245,11 @@
 
   buildButton?.addEventListener("click", () => {
     openMenuPanel(buildMenu, buildButton);
+  });
+
+  resourcesButton?.addEventListener("click", () => {
+    renderResources();
+    openMenuPanel(resourcesMenu, resourcesButton);
   });
 
   backdrop?.addEventListener("click", () => {
