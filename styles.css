@@ -419,6 +419,10 @@ body {
   animation: none;
 }
 
+.unit.is-working .unit__sprite {
+  animation: villager-work 0.9s ease-in-out infinite;
+}
+
 .unit.is-flipped {
   --unit-x: -1;
 }
@@ -461,6 +465,16 @@ body {
   }
   50% {
     transform: translateY(-4%);
+  }
+}
+
+@keyframes villager-work {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-6%) rotate(-4deg);
   }
 }
 
@@ -841,7 +855,8 @@ body {
   .start-box,
   .scene__image,
   .sky-glow,
-  .unit__sprite {
+  .unit__sprite,
+  .unit.is-working .unit__sprite {
     animation: none;
   }
 }
