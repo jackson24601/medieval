@@ -24,6 +24,8 @@
   const COMBAT_INTERVAL_SECONDS = 2;
   const MELEE_RANGE_INCHES = 0.45;
   const ARCHER_RANGE_INCHES = 2;
+  const TOWER_RANGE_INCHES = 3;
+  const UNIT_BODY_INCHES = 0.28;
   const CSS_PX_PER_INCH = 96;
 
   const TASK_DESTINATIONS = {
@@ -91,6 +93,43 @@
     },
   };
 
+  const BUILD_TYPES = {
+    palisade: {
+      label: "Wooden Palisade",
+      food: 0,
+      wood: 50,
+      stone: 0,
+      seconds: 30,
+      maxHp: 10,
+      blockInches: 0.55,
+      sprite: "assets/structures/palisade.svg",
+      className: "structure--palisade",
+    },
+    wall: {
+      label: "Stone Wall",
+      food: 0,
+      wood: 0,
+      stone: 25,
+      seconds: 45,
+      maxHp: 20,
+      blockInches: 0.6,
+      sprite: "assets/structures/wall.svg",
+      className: "structure--wall",
+    },
+    watchtower: {
+      label: "Watchtower",
+      food: 0,
+      wood: 100,
+      stone: 50,
+      seconds: 60,
+      maxHp: 50,
+      blockInches: 0.7,
+      archerRangeInches: TOWER_RANGE_INCHES,
+      sprite: "assets/structures/watchtower.svg",
+      className: "structure--watchtower",
+    },
+  };
+
   const MILITARY_TYPES = new Set(["footman", "archer", "knight"]);
 
   const SPAWN_POINTS = [
@@ -118,7 +157,9 @@
   const resourceWoodEl = document.getElementById("resource-wood");
   const resourceStoneEl = document.getElementById("resource-stone");
   const unitsLayer = document.getElementById("units-layer");
+  const structuresLayer = document.getElementById("structures-layer");
   const recruitingQueueEl = document.getElementById("recruiting-queue");
+  const buildGhost = document.getElementById("build-ghost");
 
   const resources = {
     food: 100,
@@ -131,14 +172,18 @@
   let combatCountdown = COMBAT_INTERVAL_SECONDS;
   let openMenu = null;
   let selectedUnit = null;
+  let placementType = null;
   let nextUnitId = 1;
   let nextRecruitId = 1;
+  let nextBuildId = 1;
   let nextGoblinId = 1;
+  let nextStructureId = 1;
   let lastFrameTime = performance.now();
 
   const units = Array.from(document.querySelectorAll(".unit"));
   const villagers = units.filter((unit) => unit.dataset.unit === "villager");
   const goblins = [];
+  const structures = [];
   const allMenus = [recruitMenu, buildMenu, resourcesMenu, villagerMenu].filter(
     Boolean
   );
@@ -147,6 +192,7 @@
   );
   const activeMoves = new Map();
   const recruitJobs = [];
+  const buildJobs = [];
 
   function canAfford(cost) {
     return (
@@ -165,11 +211,21 @@
     });
   }
 
+  function updateBuildAffordability() {
+    buildMenu?.querySelectorAll("[data-build]").forEach((button) => {
+      const type = button.getAttribute("data-build");
+      const config = BUILD_TYPES[type];
+      if (!config) return;
+      button.disabled = !canAfford(config);
+    });
+  }
+
   function renderResources() {
     if (resourceFoodEl) resourceFoodEl.textContent = String(resources.food);
     if (resourceWoodEl) resourceWoodEl.textContent = String(resources.wood);
     if (resourceStoneEl) resourceStoneEl.textContent = String(resources.stone);
     updateRecruitAffordability();
+    updateBuildAffordability();
   }
 
   function formatTime(totalSeconds) {
@@ -207,14 +263,18 @@
     return `${minutes}:${String(seconds).padStart(2, "0")}`;
   }
 
-  function createRecruitCard(job) {
+  function createQueueCard(job, title) {
     const card = document.createElement("div");
     card.className = "recruiting-card";
-    card.dataset.recruitId = String(job.id);
+    if (job.kind === "build") {
+      card.dataset.buildId = String(job.id);
+    } else {
+      card.dataset.recruitId = String(job.id);
+    }
     card.innerHTML = `
       <div class="recruiting-card__clock" aria-hidden="true"></div>
       <div class="recruiting-card__copy">
-        <div class="recruiting-card__title">Recruiting</div>
+        <div class="recruiting-card__title">${title}</div>
         <div class="recruiting-card__unit">${job.label}</div>
         <div class="recruiting-card__time">${formatRecruitClock(job.remaining)}</div>
       </div>
@@ -222,9 +282,21 @@
     return card;
   }
 
+  function createRecruitCard(job) {
+    return createQueueCard(job, "Recruiting");
+  }
+
+  function createBuildCard(job) {
+    return createQueueCard(job, "Building");
+  }
+
   function updateRecruitCard(job) {
     const timeEl = job.card.querySelector(".recruiting-card__time");
     if (timeEl) timeEl.textContent = formatRecruitClock(job.remaining);
+  }
+
+  function updateBuildCard(job) {
+    updateRecruitCard(job);
   }
 
   function pickSpawnPoint() {
@@ -319,23 +391,23 @@
     }, 380);
   }
 
-  function ensureHealthBar(unit) {
-    if (unit.querySelector(".unit-hp")) return;
+  function ensureHealthBar(entity) {
+    if (entity.querySelector(".unit-hp")) return;
     const bar = document.createElement("div");
     bar.className = "unit-hp";
     bar.hidden = true;
     bar.setAttribute("aria-hidden", "true");
     bar.innerHTML = '<div class="unit-hp__fill"></div>';
-    unit.appendChild(bar);
+    entity.appendChild(bar);
   }
 
-  function updateHealthBar(unit) {
-    const bar = unit.querySelector(".unit-hp");
-    const fill = unit.querySelector(".unit-hp__fill");
+  function updateHealthBar(entity) {
+    const bar = entity.querySelector(".unit-hp");
+    const fill = entity.querySelector(".unit-hp__fill");
     if (!bar || !fill) return;
 
-    const hp = Number(unit.dataset.hp || 0);
-    const maxHp = Number(unit.dataset.maxHp || 1);
+    const hp = Number(entity.dataset.hp || 0);
+    const maxHp = Number(entity.dataset.maxHp || 1);
     const ratio = maxHp > 0 ? hp / maxHp : 0;
     const percent = Math.max(0, Math.min(100, ratio * 100));
 
@@ -345,15 +417,63 @@
     else if (ratio >= 0.2) bar.classList.add("unit-hp--yellow");
     else bar.classList.add("unit-hp--red");
 
-    const engaged = unit.dataset.engaged === "true";
+    const engaged = entity.dataset.engaged === "true";
     bar.hidden = !engaged;
   }
 
-  function setUnitEngaged(unit, engaged) {
-    if (!unit) return;
-    unit.dataset.engaged = engaged ? "true" : "false";
-    unit.classList.toggle("is-engaged", engaged);
-    updateHealthBar(unit);
+  function setUnitEngaged(entity, engaged) {
+    if (!entity) return;
+    entity.dataset.engaged = engaged ? "true" : "false";
+    entity.classList.toggle("is-engaged", engaged);
+    updateHealthBar(entity);
+  }
+
+  function getStructurePosition(structure) {
+    return {
+      left: parseFloat(structure.style.left) || 0,
+      top: parseFloat(structure.style.top) || 0,
+    };
+  }
+
+  function getBuildConfig(structure) {
+    return BUILD_TYPES[structure?.dataset.structure] || null;
+  }
+
+  function getStructureBlockRadius(structure) {
+    const config = getBuildConfig(structure);
+    return getRangePercent(config?.blockInches || 0.55);
+  }
+
+  function isStructureComplete(structure) {
+    return structure?.dataset.building !== "true";
+  }
+
+  function findStructureAtPoint(left, top, paddingPercent = 0) {
+    let best = null;
+
+    structures.forEach((structure) => {
+      if (!structure.isConnected) return;
+      const pos = getStructurePosition(structure);
+      const radius = getStructureBlockRadius(structure) + paddingPercent;
+      const dist = distanceBetween({ left, top }, pos);
+      if (dist < radius && (!best || dist < best.dist)) {
+        best = { structure, dist, pos, radius };
+      }
+    });
+
+    return best;
+  }
+
+  function canPlaceStructure(type, point) {
+    const config = BUILD_TYPES[type];
+    if (!config || !point) return false;
+    const placeRadius = getRangePercent(config.blockInches);
+    const overlap = findStructureAtPoint(
+      point.left,
+      point.top,
+      placeRadius * 0.85
+    );
+    return !overlap;
   }
 
   function initUnitCombat(unit) {
@@ -388,16 +508,39 @@
     unit.remove();
   }
 
-  function applyDamage(unit, amount) {
-    if (!unit || !unit.isConnected || amount <= 0) return;
-    const maxHp = Number(unit.dataset.maxHp || getUnitStats(unit).maxHp);
-    const current = Number(unit.dataset.hp || maxHp);
+  function applyDamage(entity, amount) {
+    if (!entity || !entity.isConnected || amount <= 0) return;
+    const isStructure = entity.classList.contains("structure");
+    const maxHp = Number(
+      entity.dataset.maxHp ||
+        (isStructure
+          ? getBuildConfig(entity)?.maxHp || 1
+          : getUnitStats(entity).maxHp)
+    );
+    const current = Number(entity.dataset.hp || maxHp);
     const next = Math.max(0, current - amount);
-    unit.dataset.hp = String(next);
-    updateHealthBar(unit);
+    entity.dataset.hp = String(next);
+    updateHealthBar(entity);
     if (next <= 0) {
-      removeUnit(unit);
+      if (isStructure) removeStructure(entity);
+      else removeUnit(entity);
     }
+  }
+
+  function cancelBuildJobForStructure(structure) {
+    const job = buildJobs.find((item) => item.structure === structure);
+    if (!job) return;
+    job.card?.remove();
+    const index = buildJobs.indexOf(job);
+    if (index >= 0) buildJobs.splice(index, 1);
+  }
+
+  function removeStructure(structure) {
+    if (!structure) return;
+    cancelBuildJobForStructure(structure);
+    const index = structures.indexOf(structure);
+    if (index >= 0) structures.splice(index, 1);
+    structure.remove();
   }
 
   function getFriendlyCombatUnits() {
@@ -408,16 +551,56 @@
     );
   }
 
+  function getEntityPosition(entity) {
+    if (!entity) return { left: 0, top: 0 };
+    if (entity.classList.contains("structure")) {
+      return getStructurePosition(entity);
+    }
+    return getUnitPosition(entity);
+  }
+
   function unitsAreInCombat(a, b) {
     if (!a?.isConnected || !b?.isConnected) return false;
-    const dist = distanceBetween(getUnitPosition(a), getUnitPosition(b));
+    const dist = distanceBetween(getEntityPosition(a), getEntityPosition(b));
     return (
       dist <= getAttackRangePercent(a) || dist <= getAttackRangePercent(b)
     );
   }
 
+  function goblinInStructureMelee(goblin, structure) {
+    if (!goblin?.isConnected || !structure?.isConnected) return false;
+    const dist = distanceBetween(
+      getUnitPosition(goblin),
+      getStructurePosition(structure)
+    );
+    const reach =
+      getStructureBlockRadius(structure) + getRangePercent(MELEE_RANGE_INCHES);
+    return dist <= reach;
+  }
+
   function canDeliverAttack(attacker, defender) {
     if (!attacker?.isConnected || !defender?.isConnected) return false;
+
+    if (attacker.classList.contains("structure")) {
+      const config = getBuildConfig(attacker);
+      if (
+        attacker.dataset.structure !== "watchtower" ||
+        !isStructureComplete(attacker) ||
+        !config
+      ) {
+        return false;
+      }
+      const dist = distanceBetween(
+        getStructurePosition(attacker),
+        getUnitPosition(defender)
+      );
+      return dist <= getRangePercent(config.archerRangeInches || TOWER_RANGE_INCHES);
+    }
+
+    if (defender.classList.contains("structure")) {
+      return goblinInStructureMelee(attacker, defender);
+    }
+
     const dist = distanceBetween(
       getUnitPosition(attacker),
       getUnitPosition(defender)
@@ -434,13 +617,25 @@
     return true;
   }
 
+  function resolveTowerAttack(tower, goblin) {
+    if (!canDeliverAttack(tower, goblin)) return false;
+    const roll = rollD6();
+    const damage = roll >= 3 ? 1 : 0;
+    if (damage <= 0) return false;
+    playAttackShake(tower);
+    applyDamage(goblin, damage);
+    return true;
+  }
+
   function refreshEngagements() {
     const friends = getFriendlyCombatUnits();
     const foes = goblins.filter((goblin) => goblin.isConnected);
+    const liveStructures = structures.filter((structure) => structure.isConnected);
 
     units.forEach((unit) => {
       if (unit.isConnected) setUnitEngaged(unit, false);
     });
+    liveStructures.forEach((structure) => setUnitEngaged(structure, false));
 
     foes.forEach((goblin) => {
       friends.forEach((friend) => {
@@ -449,17 +644,24 @@
           setUnitEngaged(friend, true);
         }
       });
+
+      liveStructures.forEach((structure) => {
+        if (goblinInStructureMelee(goblin, structure)) {
+          setUnitEngaged(goblin, true);
+          setUnitEngaged(structure, true);
+        }
+      });
     });
   }
 
-  function findNearestAttackTarget(attacker, candidates) {
-    const from = getUnitPosition(attacker);
+  function findNearestAttackTarget(attacker, candidates, getPos = getEntityPosition) {
+    const from = getEntityPosition(attacker);
     let best = null;
 
     candidates.forEach((target) => {
       if (!target.isConnected) return;
       if (!canDeliverAttack(attacker, target)) return;
-      const dist = distanceBetween(from, getUnitPosition(target));
+      const dist = distanceBetween(from, getPos(target));
       if (!best || dist < best.dist) {
         best = { target, dist };
       }
@@ -471,17 +673,50 @@
   function resolveCombatRounds() {
     const friends = getFriendlyCombatUnits();
     const foes = goblins.filter((goblin) => goblin.isConnected);
+    const liveStructures = structures.filter((structure) => structure.isConnected);
 
     foes.forEach((goblin) => {
       if (!goblin.isConnected) return;
-      const nearest = findNearestAttackTarget(goblin, friends);
-      if (nearest) resolveUnitAttack(goblin, nearest.target);
+      const nearestFriend = findNearestAttackTarget(goblin, friends, getUnitPosition);
+      if (nearestFriend) {
+        resolveUnitAttack(goblin, nearestFriend.target);
+        return;
+      }
+
+      const nearestStructure = findNearestAttackTarget(
+        goblin,
+        liveStructures,
+        getStructurePosition
+      );
+      if (nearestStructure) {
+        resolveUnitAttack(goblin, nearestStructure.target);
+      }
     });
 
     friends.forEach((friend) => {
       if (!friend.isConnected) return;
-      const nearest = findNearestAttackTarget(friend, foes);
+      const nearest = findNearestAttackTarget(friend, foes, getUnitPosition);
       if (nearest) resolveUnitAttack(friend, nearest.target);
+    });
+
+    liveStructures.forEach((structure) => {
+      if (
+        structure.dataset.structure !== "watchtower" ||
+        !isStructureComplete(structure)
+      ) {
+        return;
+      }
+      const nearest = foes
+        .filter((goblin) => goblin.isConnected && canDeliverAttack(structure, goblin))
+        .map((goblin) => ({
+          goblin,
+          dist: distanceBetween(
+            getStructurePosition(structure),
+            getUnitPosition(goblin)
+          ),
+        }))
+        .sort((a, b) => a.dist - b.dist)[0];
+      if (nearest) resolveTowerAttack(structure, nearest.goblin);
     });
   }
 
@@ -548,6 +783,7 @@
 
     const job = {
       id: nextRecruitId++,
+      kind: "recruit",
       type,
       label: config.label,
       remaining: config.seconds,
@@ -557,6 +793,157 @@
     recruitingQueueEl.appendChild(job.card);
     recruitJobs.push(job);
     return true;
+  }
+
+  function initStructureCombat(structure, config) {
+    structure.dataset.maxHp = String(config.maxHp);
+    structure.dataset.hp = String(config.maxHp);
+    structure.dataset.engaged = "false";
+    ensureHealthBar(structure);
+    updateHealthBar(structure);
+  }
+
+  function createStructureElement(type, point, building) {
+    const config = BUILD_TYPES[type];
+    if (!config || !structuresLayer || !point) return null;
+
+    const structure = document.createElement("div");
+    structure.className = `structure ${config.className}`;
+    structure.dataset.structure = type;
+    structure.dataset.structureId = `structure-${nextStructureId++}`;
+    structure.dataset.building = building ? "true" : "false";
+    structure.setAttribute("aria-label", config.label);
+    structure.style.left = `${point.left}%`;
+    structure.style.top = `${point.top}%`;
+    structure.innerHTML = `
+      <span class="structure__sprite" aria-hidden="true">
+        <img src="${config.sprite}" alt="" draggable="false" />
+      </span>
+    `;
+    if (building) structure.classList.add("is-building");
+
+    structuresLayer.appendChild(structure);
+    structures.push(structure);
+    initStructureCombat(structure, config);
+    return structure;
+  }
+
+  function completeBuildJob(job) {
+    job.card.remove();
+    const index = buildJobs.indexOf(job);
+    if (index >= 0) buildJobs.splice(index, 1);
+
+    if (!job.structure?.isConnected) return;
+    job.structure.dataset.building = "false";
+    job.structure.classList.remove("is-building");
+  }
+
+  function tickBuildJobs() {
+    if (!buildJobs.length) return;
+
+    [...buildJobs].forEach((job) => {
+      if (!job.structure?.isConnected) {
+        completeBuildJob(job);
+        return;
+      }
+      job.remaining -= 1;
+      if (job.remaining <= 0) {
+        completeBuildJob(job);
+        return;
+      }
+      updateBuildCard(job);
+    });
+  }
+
+  function startBuildAt(type, point) {
+    const config = BUILD_TYPES[type];
+    if (
+      !config ||
+      !canAfford(config) ||
+      !recruitingQueueEl ||
+      !canPlaceStructure(type, point)
+    ) {
+      return false;
+    }
+
+    resources.food -= config.food;
+    resources.wood -= config.wood;
+    resources.stone -= config.stone || 0;
+    renderResources();
+
+    const structure = createStructureElement(type, point, true);
+    if (!structure) return false;
+
+    const job = {
+      id: nextBuildId++,
+      kind: "build",
+      type,
+      label: config.label,
+      remaining: config.seconds,
+      structure,
+      card: null,
+    };
+    job.card = createBuildCard(job);
+    recruitingQueueEl.appendChild(job.card);
+    buildJobs.push(job);
+    return true;
+  }
+
+  function updatePlacementCursor() {
+    document
+      .querySelector(".game")
+      ?.classList.toggle("is-placing-build", Boolean(placementType));
+  }
+
+  function setBuildGhostPosition(point) {
+    if (!buildGhost || !point) return;
+    buildGhost.style.left = `${point.left}%`;
+    buildGhost.style.top = `${point.top}%`;
+  }
+
+  function updateBuildGhostValidity(point) {
+    if (!buildGhost || !placementType || !point) return;
+    const valid = canPlaceStructure(placementType, point);
+    buildGhost.classList.toggle("is-invalid", !valid);
+  }
+
+  function cancelPlacement() {
+    placementType = null;
+    if (buildGhost) {
+      buildGhost.hidden = true;
+      buildGhost.innerHTML = "";
+      buildGhost.classList.remove("is-invalid");
+    }
+    updatePlacementCursor();
+  }
+
+  function beginPlacement(type) {
+    const config = BUILD_TYPES[type];
+    if (!config || !canAfford(config) || !buildGhost) return;
+
+    clearSelection();
+    closeMenus();
+    placementType = type;
+    buildGhost.hidden = false;
+    buildGhost.className = `build-ghost ${config.className}`;
+    buildGhost.innerHTML = `
+      <span class="structure__sprite" aria-hidden="true">
+        <img src="${config.sprite}" alt="" draggable="false" />
+      </span>
+    `;
+    updatePlacementCursor();
+  }
+
+  function tryPlaceBuilding(point) {
+    if (!placementType || !point) return false;
+    if (!canPlaceStructure(placementType, point)) {
+      updateBuildGhostValidity(point);
+      return false;
+    }
+    const type = placementType;
+    const placed = startBuildAt(type, point);
+    if (placed) cancelPlacement();
+    return placed;
   }
 
   function randomEdgeSpawn() {
@@ -668,8 +1055,25 @@
     return best;
   }
 
+  function findNearbyStructure(goblin) {
+    const from = getUnitPosition(goblin);
+    let best = null;
+
+    structures.forEach((structure) => {
+      if (!structure.isConnected) return;
+      if (!goblinInStructureMelee(goblin, structure)) return;
+      const dist = distanceBetween(from, getStructurePosition(structure));
+      if (!best || dist < best.dist) {
+        best = { structure, dist };
+      }
+    });
+
+    return best;
+  }
+
   function updateGoblins(dt) {
     const step = (GOBLIN_SPEED * dt) / 1000;
+    const bodyPad = getRangePercent(UNIT_BODY_INCHES);
 
     goblins.forEach((goblin) => {
       if (!goblin.isConnected) return;
@@ -688,6 +1092,18 @@
         return;
       }
 
+      const nearbyStructure = findNearbyStructure(goblin);
+      if (nearbyStructure) {
+        goblin.dataset.target = "structure";
+        goblin.classList.remove("is-walking");
+        goblin.dataset.frame = "0";
+        goblin.classList.toggle(
+          "is-flipped",
+          getStructurePosition(nearbyStructure.structure).left < from.left
+        );
+        return;
+      }
+
       const target = getGoblinTarget(goblin);
       const dx = target.left - from.left;
       const dy = target.top - from.top;
@@ -702,8 +1118,31 @@
       }
 
       const ratio = Math.min(1, step / dist);
-      goblin.style.left = `${from.left + dx * ratio}%`;
-      goblin.style.top = `${from.top + dy * ratio}%`;
+      const nextLeft = from.left + dx * ratio;
+      const nextTop = from.top + dy * ratio;
+      const blocker = findStructureAtPoint(nextLeft, nextTop, bodyPad);
+
+      if (blocker) {
+        const stopDist = blocker.radius;
+        const distToBlocker = distanceBetween(from, blocker.pos);
+        if (distToBlocker > stopDist + 0.2) {
+          const approach = distToBlocker - stopDist;
+          const moveAmount = Math.min(step, approach);
+          const inv = distToBlocker > 0 ? moveAmount / distToBlocker : 0;
+          goblin.style.left = `${from.left + (blocker.pos.left - from.left) * inv}%`;
+          goblin.style.top = `${from.top + (blocker.pos.top - from.top) * inv}%`;
+          goblin.classList.add("is-walking");
+        } else {
+          goblin.classList.remove("is-walking");
+          goblin.dataset.frame = "0";
+        }
+        goblin.dataset.target = "structure";
+        goblin.classList.toggle("is-flipped", blocker.pos.left < from.left);
+        return;
+      }
+
+      goblin.style.left = `${nextLeft}%`;
+      goblin.style.top = `${nextTop}%`;
       goblin.classList.add("is-walking");
       goblin.classList.toggle("is-flipped", dx < 0);
     });
@@ -727,6 +1166,7 @@
     }
 
     tickRecruitJobs();
+    tickBuildJobs();
     refreshEngagements();
 
     combatCountdown -= 1;
@@ -761,6 +1201,7 @@
 
   function openMenuPanel(menu, button) {
     if (!menu) return;
+    if (placementType) cancelPlacement();
     if (openMenu === menu && button) {
       closeMenus();
       return;
@@ -771,6 +1212,7 @@
     if (button) setExpanded(button, true);
     openMenu = menu;
     if (menu === recruitMenu) updateRecruitAffordability();
+    if (menu === buildMenu) updateBuildAffordability();
     const closeBtn = menu.querySelector("[data-close-popup]");
     if (closeBtn) closeBtn.focus();
   }
@@ -1021,6 +1463,10 @@
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (placementType) {
+        cancelPlacement();
+        return;
+      }
       if (openMenu) {
         closeMenus();
         return;
@@ -1050,12 +1496,38 @@
     });
   });
 
-  document.querySelector(".game")?.addEventListener("click", (event) => {
-    if (event.target.closest(".unit")) return;
+  buildMenu?.querySelectorAll("[data-build]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const type = button.getAttribute("data-build");
+      if (!type || button.disabled) return;
+      beginPlacement(type);
+    });
+  });
+
+  const gameEl = document.querySelector(".game");
+
+  gameEl?.addEventListener("pointermove", (event) => {
+    if (!placementType) return;
+    const point = mapClickToPercent(event);
+    if (!point) return;
+    setBuildGhostPosition(point);
+    updateBuildGhostValidity(point);
+  });
+
+  gameEl?.addEventListener("click", (event) => {
     if (event.target.closest(".hud")) return;
     if (event.target.closest(".popup")) return;
     if (event.target.closest(".recruiting-queue")) return;
 
+    if (placementType) {
+      if (event.target.closest(".unit")) return;
+      const point = mapClickToPercent(event);
+      if (point) tryPlaceBuilding(point);
+      return;
+    }
+
+    if (event.target.closest(".unit")) return;
+    if (event.target.closest(".structure")) return;
     if (openMenu) return;
 
     if (isMilitaryUnit(selectedUnit)) {

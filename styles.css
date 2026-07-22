@@ -343,12 +343,18 @@ body {
   overflow: hidden;
 }
 
-.game.is-issuing-move {
+.game.is-issuing-move,
+.game.is-placing-build {
   cursor: crosshair;
 }
 
 .game.is-issuing-move .unit {
   cursor: pointer;
+}
+
+.game.is-placing-build .unit,
+.game.is-placing-build .structure {
+  pointer-events: none;
 }
 
 .game__map {
@@ -459,6 +465,89 @@ body {
   to {
     transform: translateX(-50%) rotate(360deg);
   }
+}
+
+/* —— Structures —— */
+
+.structures {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.structure,
+.build-ghost {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4.6rem;
+  height: 2.8rem;
+  transform: translate(-50%, -78%);
+  pointer-events: none;
+  z-index: 8;
+}
+
+.structure--watchtower,
+.build-ghost.structure--watchtower {
+  width: 3.6rem;
+  height: 5.4rem;
+  transform: translate(-50%, -88%);
+  z-index: 9;
+}
+
+.structure__sprite {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.structure__sprite img,
+.build-ghost .structure__sprite img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 2px 0 rgba(20, 12, 6, 0.35));
+}
+
+.structure.is-building {
+  opacity: 0.72;
+}
+
+.structure.is-building .structure__sprite img {
+  filter: drop-shadow(0 2px 0 rgba(20, 12, 6, 0.35)) saturate(0.75);
+}
+
+.structure .unit-hp {
+  top: 12%;
+  height: 64%;
+}
+
+.structure.is-attacking .structure__sprite {
+  animation: unit-attack-shake 0.35s ease-in-out;
+}
+
+.build-ghost {
+  z-index: 40;
+  opacity: 0.78;
+  filter: none;
+}
+
+.build-ghost.is-invalid {
+  opacity: 0.45;
+}
+
+.build-ghost.is-invalid .structure__sprite img {
+  filter: drop-shadow(0 0 0 transparent) grayscale(0.2)
+    sepia(0.35) hue-rotate(-20deg) saturate(1.4);
+}
+
+.build-ghost[hidden] {
+  display: none !important;
 }
 
 /* —— Units —— */
@@ -1066,6 +1155,7 @@ body {
   .unit.is-working .unit__sprite,
   .unit.is-attacking .unit__sprite,
   .unit.is-attacking .unit__sprite--image,
+  .structure.is-attacking .structure__sprite,
   .recruiting-card__clock::before {
     animation: none;
   }
