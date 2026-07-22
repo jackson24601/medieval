@@ -201,6 +201,8 @@
   const castleHealthValueEl = document.getElementById("castle-health-value");
   const victoryOverlay = document.getElementById("victory-overlay");
   const nextRoundButton = document.getElementById("next-round-button");
+  const roundIntro = document.getElementById("round-intro");
+  const roundIntroContinue = document.getElementById("round-intro-continue");
 
   const resources = {
     food: 100,
@@ -213,6 +215,7 @@
   let combatCountdown = COMBAT_INTERVAL_SECONDS;
   let castleHp = CASTLE_MAX_HP;
   let gameOver = false;
+  let introActive = Boolean(roundIntro && !roundIntro.hidden);
   let openMenu = null;
   let selectedUnit = null;
   let placementType = null;
@@ -1430,8 +1433,15 @@
     });
   }
 
+  function dismissRoundIntro() {
+    if (!roundIntro) return;
+    roundIntro.hidden = true;
+    introActive = false;
+    document.querySelector(".game")?.classList.remove("is-intro");
+  }
+
   function tick() {
-    if (gameOver) return;
+    if (gameOver || introActive) return;
 
     if (remainingSeconds > 0) {
       remainingSeconds -= 1;
@@ -1792,7 +1802,7 @@
   function animationLoop(now) {
     const dt = Math.min(50, now - lastFrameTime);
     lastFrameTime = now;
-    if (!gameOver) {
+    if (!gameOver && !introActive) {
       updateFootmanAggro(dt);
       updateMoves(now);
       updateGoblins(dt);
@@ -1804,8 +1814,16 @@
   updateTimer();
   renderCastleHealth();
   renderResources();
+  if (introActive) {
+    document.querySelector(".game")?.classList.add("is-intro");
+    roundIntroContinue?.focus();
+  }
   window.setInterval(tick, 1000);
   requestAnimationFrame(animationLoop);
+
+  roundIntroContinue?.addEventListener("click", () => {
+    dismissRoundIntro();
+  });
 
   recruitButton?.addEventListener("click", () => {
     openMenuPanel(recruitMenu, recruitButton);
