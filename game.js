@@ -10,7 +10,19 @@
     level: 1,
     label: "Goblin",
     sprite: "assets/units/goblin-1.png",
+    maxHp: 5,
+    attack: 1,
   };
+
+  const UNIT_STATS = {
+    villager: { maxHp: 5, attack: 1 },
+    footman: { maxHp: 10, attack: 2 },
+    archer: { maxHp: 10, attack: 2 },
+    knight: { maxHp: 25, attack: 3 },
+    goblin: { maxHp: 5, attack: 1 },
+  };
+
+  const COMBAT_RANGE = 3.2;
 
   const TASK_DESTINATIONS = {
     farm: [
@@ -233,6 +245,145 @@
     };
   }
 
+  function getUnitStats(unit) {
+    if (!unit) return UNIT_STATS.villager;
+    if (unit.dataset.unit === "goblin") {
+      const level = Number(unit.dataset.goblinLevel || 1);
+      if (level === 1) {
+        return {
+          maxHp: GOBLIN_LEVEL_1.maxHp,
+          attack: GOBLIN_LEVEL_1.attack,
+        };
+      }
+    }
+    return UNIT_STATS[unit.dataset.unit] || UNIT_STATS.villager;
+  }
+
+  function ensureHealthBar(unit) {
+    if (unit.querySelector(".unit-hp")) return;
+    const bar = document.createElement("div");
+    bar.className = "unit-hp";
+    bar.hidden = true;
+    bar.setAttribute("aria-hidden", "true");
+    bar.innerHTML = '<div class="unit-hp__fill"></div>';
+    unit.appendChild(bar);
+  }
+
+  function updateHealthBar(unit) {
+    const bar = unit.querySelector(".unit-hp");
+    const fill = unit.querySelector(".unit-hp__fill");
+    if (!bar || !fill) return;
+
+    const hp = Number(unit.dataset.hp || 0);
+    const maxHp = Number(unit.dataset.maxHp || 1);
+    const ratio = maxHp > 0 ? hp / maxHp : 0;
+    const percent = Math.max(0, Math.min(100, ratio * 100));
+
+    fill.style.height = `${percent}%`;
+    bar.classList.remove("unit-hp--green", "unit-hp--yellow", "unit-hp--red");
+    if (ratio >= 0.7) bar.classList.add("unit-hp--green");
+    else if (ratio >= 0.2) bar.classList.add("unit-hp--yellow");
+    else bar.classList.add("unit-hp--red");
+
+    const engaged = unit.dataset.engaged === "true";
+    bar.hidden = !engaged;
+  }
+
+  function setUnitEngaged(unit, engaged) {
+    if (!unit) return;
+    unit.dataset.engaged = engaged ? "true" : "false";
+    unit.classList.toggle("is-engaged", engaged);
+    updateHealthBar(unit);
+  }
+
+  function initUnitCombat(unit) {
+    if (!unit) return;
+    const stats = getUnitStats(unit);
+    unit.dataset.maxHp = String(stats.maxHp);
+    unit.dataset.hp = String(stats.maxHp);
+    unit.dataset.engaged = "false";
+    ensureHealthBar(unit);
+    updateHealthBar(unit);
+  }
+
+  function removeUnit(unit) {
+    if (!unit) return;
+
+    if (selectedUnit === unit) {
+      clearSelection();
+    }
+
+    stopUnit(unit);
+    activeMoves.delete(unit);
+
+    const unitIndex = units.indexOf(unit);
+    if (unitIndex >= 0) units.splice(unitIndex, 1);
+
+    const villagerIndex = villagers.indexOf(unit);
+    if (villagerIndex >= 0) villagers.splice(villagerIndex, 1);
+
+    const goblinIndex = goblins.indexOf(unit);
+    if (goblinIndex >= 0) goblins.splice(goblinIndex, 1);
+
+    unit.remove();
+  }
+
+  function applyDamage(unit, amount) {
+    if (!unit || !unit.isConnected || amount <= 0) return;
+    const maxHp = Number(unit.dataset.maxHp || getUnitStats(unit).maxHp);
+    const current = Number(unit.dataset.hp || maxHp);
+    const next = Math.max(0, current - amount);
+    unit.dataset.hp = String(next);
+    updateHealthBar(unit);
+    if (next <= 0) {
+      removeUnit(unit);
+    }
+  }
+
+  function getFriendlyCombatUnits() {
+    return units.filter(
+      (unit) =>
+        unit.isConnected &&
+        (unit.dataset.unit === "villager" || isMilitaryUnit(unit))
+    );
+  }
+
+  function updateCombat() {
+    const friends = getFriendlyCombatUnits();
+    const foes = goblins.filter((goblin) => goblin.isConnected);
+
+    units.forEach((unit) => {
+      if (unit.isConnected) setUnitEngaged(unit, false);
+    });
+
+    const engagements = [];
+
+    foes.forEach((goblin) => {
+      const goblinPos = getUnitPosition(goblin);
+      let best = null;
+
+      friends.forEach((friend) => {
+        const dist = distanceBetween(goblinPos, getUnitPosition(friend));
+        if (dist <= COMBAT_RANGE && (!best || dist < best.dist)) {
+          best = { friend, dist };
+        }
+      });
+
+      if (best) {
+        engagements.push([goblin, best.friend]);
+        setUnitEngaged(goblin, true);
+        setUnitEngaged(best.friend, true);
+      }
+    });
+
+    engagements.forEach(([goblin, friend]) => {
+      if (!goblin.isConnected || !friend.isConnected) return;
+      applyDamage(friend, getUnitStats(goblin).attack);
+      if (!friend.isConnected) return;
+      applyDamage(goblin, getUnitStats(friend).attack);
+    });
+  }
+
   function spawnMilitaryUnit(type) {
     const config = RECRUIT_TYPES[type];
     if (!config || !unitsLayer) return null;
@@ -257,6 +408,7 @@
     unitsLayer.appendChild(button);
     units.push(button);
     bindUnitClick(button);
+    initUnitCombat(button);
     return button;
   }
 
@@ -341,6 +493,7 @@
     units.push(button);
     goblins.push(button);
     bindUnitClick(button);
+    initUnitCombat(button);
     return button;
   }
 
@@ -395,6 +548,20 @@
     };
   }
 
+  function findNearbyFriendly(goblin) {
+    const from = getUnitPosition(goblin);
+    let best = null;
+
+    getFriendlyCombatUnits().forEach((friend) => {
+      const dist = distanceBetween(from, getUnitPosition(friend));
+      if (dist <= COMBAT_RANGE && (!best || dist < best.dist)) {
+        best = { friend, dist };
+      }
+    });
+
+    return best;
+  }
+
   function updateGoblins(dt) {
     const step = (GOBLIN_SPEED * dt) / 1000;
 
@@ -402,6 +569,19 @@
       if (!goblin.isConnected) return;
 
       const from = getUnitPosition(goblin);
+      const nearbyFriendly = findNearbyFriendly(goblin);
+
+      if (nearbyFriendly) {
+        goblin.dataset.target = nearbyFriendly.friend.dataset.unit || "unit";
+        goblin.classList.remove("is-walking");
+        goblin.dataset.frame = "0";
+        goblin.classList.toggle(
+          "is-flipped",
+          getUnitPosition(nearbyFriendly.friend).left < from.left
+        );
+        return;
+      }
+
       const target = getGoblinTarget(goblin);
       const dx = target.left - from.left;
       const dy = target.top - from.top;
@@ -441,6 +621,7 @@
     }
 
     tickRecruitJobs();
+    updateCombat();
   }
 
   function setExpanded(button, expanded) {
@@ -698,6 +879,7 @@
     requestAnimationFrame(animationLoop);
   }
 
+  units.forEach((unit) => initUnitCombat(unit));
   updateTimer();
   renderResources();
   window.setInterval(tick, 1000);
