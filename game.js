@@ -5,6 +5,7 @@
   const WALK_FRAME_MS = 140;
   const GATHER_INTERVAL_SECONDS = 10;
   const GOBLIN_FIRST_SPAWN_REMAINING = 9 * 60; // at the 9:00 mark
+  const CASTLE_MAX_HP = 100;
   const CASTLE_POSITION = { left: 50, top: 48 };
   const GOBLIN_LEVEL_1 = {
     level: 1,
@@ -160,6 +161,11 @@
   const structuresLayer = document.getElementById("structures-layer");
   const recruitingQueueEl = document.getElementById("recruiting-queue");
   const buildGhost = document.getElementById("build-ghost");
+  const castleHealthEl = document.getElementById("castle-health");
+  const castleHealthFillEl = document.getElementById("castle-health-fill");
+  const castleHealthValueEl = document.getElementById("castle-health-value");
+  const victoryOverlay = document.getElementById("victory-overlay");
+  const nextRoundButton = document.getElementById("next-round-button");
 
   const resources = {
     food: 100,
@@ -170,6 +176,8 @@
   let remainingSeconds = ROUND_SECONDS;
   let gatherCountdown = GATHER_INTERVAL_SECONDS;
   let combatCountdown = COMBAT_INTERVAL_SECONDS;
+  let castleHp = CASTLE_MAX_HP;
+  let gameOver = false;
   let openMenu = null;
   let selectedUnit = null;
   let placementType = null;
@@ -241,6 +249,41 @@
       "datetime",
       `PT${Math.floor(remainingSeconds / 60)}M${remainingSeconds % 60}S`
     );
+  }
+
+  function renderCastleHealth() {
+    const clamped = Math.max(0, Math.min(CASTLE_MAX_HP, castleHp));
+    castleHp = clamped;
+    if (castleHealthValueEl) {
+      castleHealthValueEl.textContent = String(clamped);
+    }
+    if (castleHealthFillEl) {
+      castleHealthFillEl.style.width = `${(clamped / CASTLE_MAX_HP) * 100}%`;
+    }
+    if (castleHealthEl) {
+      castleHealthEl.setAttribute("aria-valuenow", String(clamped));
+    }
+  }
+
+  function showVictory() {
+    if (gameOver) return;
+    gameOver = true;
+    cancelPlacement();
+    closeMenus();
+    clearSelection();
+    if (victoryOverlay) {
+      victoryOverlay.hidden = false;
+      document.querySelector(".game")?.classList.add("is-victory");
+      nextRoundButton?.focus();
+    }
+  }
+
+  function checkRoundEnd() {
+    if (gameOver) return;
+    if (remainingSeconds > 0) return;
+    if (castleHp > 0) {
+      showVictory();
+    }
   }
 
   function collectResources() {
@@ -1149,6 +1192,8 @@
   }
 
   function tick() {
+    if (gameOver) return;
+
     if (remainingSeconds > 0) {
       remainingSeconds -= 1;
       updateTimer();
@@ -1175,6 +1220,8 @@
       resolveCombatRounds();
       refreshEngagements();
     }
+
+    checkRoundEnd();
   }
 
   function setExpanded(button, expanded) {
@@ -1429,13 +1476,16 @@
   function animationLoop(now) {
     const dt = Math.min(50, now - lastFrameTime);
     lastFrameTime = now;
-    updateMoves(now);
-    updateGoblins(dt);
+    if (!gameOver) {
+      updateMoves(now);
+      updateGoblins(dt);
+    }
     requestAnimationFrame(animationLoop);
   }
 
   units.forEach((unit) => initUnitCombat(unit));
   updateTimer();
+  renderCastleHealth();
   renderResources();
   window.setInterval(tick, 1000);
   requestAnimationFrame(animationLoop);
