@@ -489,13 +489,24 @@ body {
   will-change: left, top;
 }
 
-.unit--military {
+.unit--military,
+.unit--goblin {
   width: clamp(2.7rem, 4.6vw, 4rem);
   aspect-ratio: 1;
 }
 
-.unit--military .unit__sprite--image img {
+.unit--military .unit__sprite--image img,
+.unit--goblin .unit__sprite--image img {
   object-fit: contain;
+}
+
+.unit--goblin {
+  cursor: default;
+  z-index: 12;
+}
+
+.unit--goblin.is-walking .unit__sprite--image {
+  animation: villager-work 0.55s ease-in-out infinite;
 }
 
 .unit__sprite {

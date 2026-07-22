@@ -1,8 +1,16 @@
 (() => {
   const ROUND_SECONDS = 10 * 60;
   const MOVE_SPEED = 11; // map percent per second
+  const GOBLIN_SPEED = 8; // map percent per second
   const WALK_FRAME_MS = 140;
   const GATHER_INTERVAL_SECONDS = 10;
+  const GOBLIN_FIRST_SPAWN_REMAINING = 9 * 60; // at the 9:00 mark
+  const CASTLE_POSITION = { left: 50, top: 48 };
+  const GOBLIN_LEVEL_1 = {
+    level: 1,
+    label: "Goblin",
+    sprite: "assets/units/goblin-1.png",
+  };
 
   const TASK_DESTINATIONS = {
     farm: [
@@ -110,9 +118,12 @@
   let selectedUnit = null;
   let nextUnitId = 1;
   let nextRecruitId = 1;
+  let nextGoblinId = 1;
+  let lastFrameTime = performance.now();
 
   const units = Array.from(document.querySelectorAll(".unit"));
   const villagers = units.filter((unit) => unit.dataset.unit === "villager");
+  const goblins = [];
   const allMenus = [recruitMenu, buildMenu, resourcesMenu, villagerMenu].filter(
     Boolean
   );
@@ -291,10 +302,134 @@
     return true;
   }
 
+  function randomEdgeSpawn() {
+    const side = Math.floor(Math.random() * 4);
+    if (side === 0) {
+      return { left: 4 + Math.random() * 92, top: 4 };
+    }
+    if (side === 1) {
+      return { left: 97, top: 8 + Math.random() * 72 };
+    }
+    if (side === 2) {
+      return { left: 4 + Math.random() * 92, top: 86 };
+    }
+    return { left: 3, top: 8 + Math.random() * 72 };
+  }
+
+  function spawnGoblin(level = 1) {
+    if (!unitsLayer || level !== 1) return null;
+
+    const spawn = randomEdgeSpawn();
+    const unitId = `goblin-${nextGoblinId++}`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "unit unit--goblin unit--goblin-1";
+    button.dataset.unit = "goblin";
+    button.dataset.goblinLevel = String(level);
+    button.dataset.unitId = unitId;
+    button.setAttribute("aria-pressed", "false");
+    button.setAttribute("aria-label", `${GOBLIN_LEVEL_1.label} Level ${level}`);
+    button.style.left = `${spawn.left}%`;
+    button.style.top = `${spawn.top}%`;
+    button.innerHTML = `
+      <span class="unit__sprite unit__sprite--image" aria-hidden="true">
+        <img src="${GOBLIN_LEVEL_1.sprite}" alt="" draggable="false" />
+      </span>
+    `;
+
+    unitsLayer.appendChild(button);
+    units.push(button);
+    goblins.push(button);
+    bindUnitClick(button);
+    return button;
+  }
+
+  function shouldSpawnGoblin(secondsLeft) {
+    return (
+      secondsLeft > 0 &&
+      secondsLeft <= GOBLIN_FIRST_SPAWN_REMAINING &&
+      secondsLeft % 60 === 0
+    );
+  }
+
+  function distanceBetween(a, b) {
+    return Math.hypot(a.left - b.left, a.top - b.top);
+  }
+
+  function getClosestVillager(from) {
+    let closest = null;
+    let closestDist = Infinity;
+
+    villagers.forEach((villager) => {
+      if (!villager.isConnected) return;
+      const pos = getUnitPosition(villager);
+      const dist = distanceBetween(from, pos);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = { unit: villager, pos, dist };
+      }
+    });
+
+    return closest;
+  }
+
+  function getGoblinTarget(goblin) {
+    const from = getUnitPosition(goblin);
+    const closestVillager = getClosestVillager(from);
+    const castleDist = distanceBetween(from, CASTLE_POSITION);
+
+    if (closestVillager && closestVillager.dist < castleDist) {
+      return {
+        left: closestVillager.pos.left,
+        top: closestVillager.pos.top,
+        kind: "villager",
+        unit: closestVillager.unit,
+      };
+    }
+
+    return {
+      left: CASTLE_POSITION.left,
+      top: CASTLE_POSITION.top,
+      kind: "castle",
+      unit: null,
+    };
+  }
+
+  function updateGoblins(dt) {
+    const step = (GOBLIN_SPEED * dt) / 1000;
+
+    goblins.forEach((goblin) => {
+      if (!goblin.isConnected) return;
+
+      const from = getUnitPosition(goblin);
+      const target = getGoblinTarget(goblin);
+      const dx = target.left - from.left;
+      const dy = target.top - from.top;
+      const dist = Math.hypot(dx, dy);
+
+      goblin.dataset.target = target.kind;
+
+      if (dist < 1.5) {
+        goblin.classList.remove("is-walking");
+        goblin.dataset.frame = "0";
+        return;
+      }
+
+      const ratio = Math.min(1, step / dist);
+      goblin.style.left = `${from.left + dx * ratio}%`;
+      goblin.style.top = `${from.top + dy * ratio}%`;
+      goblin.classList.add("is-walking");
+      goblin.classList.toggle("is-flipped", dx < 0);
+    });
+  }
+
   function tick() {
     if (remainingSeconds > 0) {
       remainingSeconds -= 1;
       updateTimer();
+      if (shouldSpawnGoblin(remainingSeconds)) {
+        spawnGoblin(1);
+      }
     } else {
       updateTimer();
     }
@@ -353,6 +488,9 @@
   function bindUnitClick(unit) {
     unit.addEventListener("click", (event) => {
       event.stopPropagation();
+      if (unit.dataset.unit === "goblin") {
+        return;
+      }
       if (unit.dataset.unit === "villager") {
         openVillagerMenu(unit);
         return;
@@ -553,7 +691,10 @@
   }
 
   function animationLoop(now) {
+    const dt = Math.min(50, now - lastFrameTime);
+    lastFrameTime = now;
     updateMoves(now);
+    updateGoblins(dt);
     requestAnimationFrame(animationLoop);
   }
 
