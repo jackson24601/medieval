@@ -5,6 +5,7 @@
   const WALK_FRAME_MS = 140;
   const GATHER_INTERVAL_SECONDS = 10;
   const GOBLIN_FIRST_SPAWN_REMAINING = 9 * 60; // at the 9:00 mark
+  const GOBLIN_FINAL_WAVE_REMAINING = 30; // four goblins from all sides
   const CASTLE_MAX_HP = 100;
   const CASTLE_POSITION = { left: 50, top: 48 };
   // Outer stone ring on the map — goblins cannot pass inside this radius.
@@ -1115,8 +1116,7 @@
     return placed;
   }
 
-  function randomEdgeSpawn() {
-    const side = Math.floor(Math.random() * 4);
+  function edgeSpawnForSide(side) {
     if (side === 0) {
       return { left: 4 + Math.random() * 92, top: 4 };
     }
@@ -1129,10 +1129,14 @@
     return { left: 3, top: 8 + Math.random() * 72 };
   }
 
-  function spawnGoblin(level = 1) {
+  function randomEdgeSpawn() {
+    return edgeSpawnForSide(Math.floor(Math.random() * 4));
+  }
+
+  function spawnGoblin(level = 1, spawnPoint = null) {
     if (!unitsLayer || level !== 1) return null;
 
-    const spawn = randomEdgeSpawn();
+    const spawn = spawnPoint || randomEdgeSpawn();
     const unitId = `goblin-${nextGoblinId++}`;
     const button = document.createElement("button");
     button.type = "button";
@@ -1158,12 +1162,22 @@
     return button;
   }
 
+  function spawnGoblinsFromAllDirections(level = 1) {
+    for (let side = 0; side < 4; side += 1) {
+      spawnGoblin(level, edgeSpawnForSide(side));
+    }
+  }
+
   function shouldSpawnGoblin(secondsLeft) {
     return (
       secondsLeft > 0 &&
       secondsLeft <= GOBLIN_FIRST_SPAWN_REMAINING &&
       secondsLeft % 60 === 0
     );
+  }
+
+  function shouldSpawnFinalGoblinWave(secondsLeft) {
+    return secondsLeft === GOBLIN_FINAL_WAVE_REMAINING;
   }
 
   function distanceBetween(a, b) {
@@ -1376,6 +1390,9 @@
       updateTimer();
       if (shouldSpawnGoblin(remainingSeconds)) {
         spawnGoblin(1);
+      }
+      if (shouldSpawnFinalGoblinWave(remainingSeconds)) {
+        spawnGoblinsFromAllDirections(1);
       }
     } else {
       updateTimer();
