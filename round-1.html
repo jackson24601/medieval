@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Fraunces:opsz,wght@9..144,500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=villager-tasks" />
+    <link rel="stylesheet" href="styles.css?v=recruit" />
   </head>
   <body class="game-body">
     <main class="game" aria-label="Round one battlefield">
@@ -23,6 +23,13 @@
           height="1024"
         />
       </div>
+
+      <div
+        class="recruiting-queue"
+        id="recruiting-queue"
+        aria-live="polite"
+        aria-label="Recruiting queue"
+      ></div>
 
       <div class="units" id="units-layer" aria-label="Units">
         <button
@@ -111,21 +118,33 @@
           </header>
           <ul class="popup__list">
             <li>
-              <button type="button" class="popup__option" disabled>
+              <button
+                type="button"
+                class="popup__option"
+                data-recruit="footman"
+              >
                 Footman
-                <span class="popup__hint">Coming soon</span>
+                <span class="popup__hint">30 Food · 5 Wood · 30s</span>
               </button>
             </li>
             <li>
-              <button type="button" class="popup__option" disabled>
+              <button
+                type="button"
+                class="popup__option"
+                data-recruit="archer"
+              >
                 Archer
-                <span class="popup__hint">Coming soon</span>
+                <span class="popup__hint">75 Food · 25 Wood · 45s</span>
               </button>
             </li>
             <li>
-              <button type="button" class="popup__option" disabled>
+              <button
+                type="button"
+                class="popup__option"
+                data-recruit="knight"
+              >
                 Knight
-                <span class="popup__hint">Coming soon</span>
+                <span class="popup__hint">250 Food · 25 Wood · 2m</span>
               </button>
             </li>
           </ul>
@@ -319,6 +338,6 @@
       </footer>
     </main>
 
-    <script src="game.js?v=villager-tasks" defer></script>
+    <script src="game.js?v=recruit" defer></script>
   </body>
 </html>

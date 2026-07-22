@@ -358,6 +358,101 @@ body {
   pointer-events: none;
 }
 
+/* —— Recruiting queue —— */
+
+.recruiting-queue {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: min(15rem, calc(100% - 2rem));
+  pointer-events: none;
+}
+
+.recruiting-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.65rem 0.75rem;
+  background: linear-gradient(180deg, #f3e6c8 0%, #e5d2a8 100%);
+  border: 3px solid #3d2a14;
+  border-radius: 8px;
+  box-shadow: 0 4px 0 rgba(30, 18, 8, 0.45);
+  color: #1c140c;
+  pointer-events: none;
+}
+
+.recruiting-card__clock {
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 3px solid #3d2a14;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #fff6d8;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.recruiting-card__clock::before {
+  content: "";
+  position: absolute;
+  width: 2px;
+  height: 0.55rem;
+  background: #3d2a14;
+  top: 0.35rem;
+  left: 50%;
+  transform: translateX(-50%);
+  transform-origin: bottom center;
+  animation: clock-hand 1s linear infinite;
+}
+
+.recruiting-card__clock::after {
+  content: "";
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: #3d2a14;
+}
+
+.recruiting-card__copy {
+  min-width: 0;
+}
+
+.recruiting-card__title {
+  font-family: var(--font-bubble);
+  font-weight: 800;
+  font-size: 1.05rem;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+
+.recruiting-card__unit {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #5a3d1c;
+}
+
+.recruiting-card__time {
+  font-family: var(--font-bubble);
+  font-weight: 800;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  color: #2a1a0a;
+  margin-top: 0.1rem;
+}
+
+@keyframes clock-hand {
+  to {
+    transform: translateX(-50%) rotate(360deg);
+  }
+}
+
 /* —— Units —— */
 
 .units {
@@ -386,6 +481,11 @@ body {
   will-change: left, top;
 }
 
+.unit--military {
+  width: clamp(2.55rem, 4.4vw, 3.8rem);
+  aspect-ratio: 72 / 96;
+}
+
 .unit__sprite {
   display: block;
   width: 100%;
@@ -397,6 +497,19 @@ body {
   pointer-events: none;
   user-select: none;
   animation: villager-idle 2.8s ease-in-out infinite;
+}
+
+.unit__sprite--image {
+  background: none;
+  animation: villager-idle 2.8s ease-in-out infinite;
+}
+
+.unit__sprite--image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
 }
 
 .unit[data-frame="0"] .unit__sprite {
@@ -856,7 +969,8 @@ body {
   .scene__image,
   .sky-glow,
   .unit__sprite,
-  .unit.is-working .unit__sprite {
+  .unit.is-working .unit__sprite,
+  .recruiting-card__clock::before {
     animation: none;
   }
 }
