@@ -2,22 +2,44 @@
   const ROUND_SECONDS = 10 * 60;
   const MOVE_SPEED = 11; // map percent per second
   const WALK_FRAME_MS = 140;
+  const GATHER_INTERVAL_SECONDS = 10;
 
   const TASK_DESTINATIONS = {
     farm: [
-      { left: 18, top: 50 },
-      { left: 80, top: 48 },
-      { left: 22, top: 64 },
-      { left: 74, top: 62 },
+      { left: 18, top: 34 },
+      { left: 26, top: 38 },
+      { left: 72, top: 68 },
+      { left: 80, top: 64 },
+      { left: 20, top: 58 },
     ],
-    mine: [{ left: 84, top: 16 }],
+    mine: [
+      { left: 82, top: 14 },
+      { left: 88, top: 18 },
+      { left: 78, top: 20 },
+      { left: 86, top: 22 },
+      { left: 90, top: 12 },
+    ],
     "chop-wood": [
-      { left: 14, top: 28 },
-      { left: 48, top: 18 },
-      { left: 90, top: 58 },
-      { left: 60, top: 78 },
+      { left: 12, top: 42 },
+      { left: 36, top: 18 },
+      { left: 58, top: 16 },
+      { left: 90, top: 48 },
+      { left: 64, top: 78 },
+      { left: 10, top: 62 },
     ],
-    "return-to-castle": [{ left: 50, top: 50 }],
+    "return-to-castle": [
+      { left: 42, top: 58 },
+      { left: 58, top: 58 },
+      { left: 38, top: 48 },
+      { left: 62, top: 48 },
+      { left: 50, top: 62 },
+    ],
+  };
+
+  const GATHER_YIELDS = {
+    farm: { resource: "food", amount: 10 },
+    mine: { resource: "stone", amount: 1 },
+    "chop-wood": { resource: "wood", amount: 2 },
   };
 
   const timerEl = document.getElementById("round-timer");
@@ -40,10 +62,12 @@
   };
 
   let remainingSeconds = ROUND_SECONDS;
+  let gatherCountdown = GATHER_INTERVAL_SECONDS;
   let openMenu = null;
   let selectedUnit = null;
 
   const units = Array.from(document.querySelectorAll(".unit"));
+  const villagers = units.filter((unit) => unit.dataset.unit === "villager");
   const allMenus = [recruitMenu, buildMenu, resourcesMenu, villagerMenu].filter(
     Boolean
   );
@@ -73,13 +97,33 @@
     );
   }
 
+  function collectResources() {
+    let gained = false;
+
+    villagers.forEach((unit) => {
+      if (unit.dataset.working !== "true") return;
+      const yieldInfo = GATHER_YIELDS[unit.dataset.task];
+      if (!yieldInfo) return;
+      resources[yieldInfo.resource] += yieldInfo.amount;
+      gained = true;
+    });
+
+    if (gained) renderResources();
+  }
+
   function tick() {
-    if (remainingSeconds <= 0) {
+    if (remainingSeconds > 0) {
+      remainingSeconds -= 1;
       updateTimer();
-      return;
+    } else {
+      updateTimer();
     }
-    remainingSeconds -= 1;
-    updateTimer();
+
+    gatherCountdown -= 1;
+    if (gatherCountdown <= 0) {
+      gatherCountdown = GATHER_INTERVAL_SECONDS;
+      collectResources();
+    }
   }
 
   function setExpanded(button, expanded) {
@@ -153,22 +197,66 @@
     };
   }
 
-  function nearestDestination(from, destinations) {
-    let best = destinations[0];
-    let bestDist = Infinity;
-    destinations.forEach((point) => {
-      const dist =
-        (point.left - from.left) ** 2 + (point.top - from.top) ** 2;
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = point;
+  function destinationKey(point) {
+    return `${point.left}:${point.top}`;
+  }
+
+  function occupiedDestinationKeys(exceptUnit) {
+    const occupied = new Set();
+
+    villagers.forEach((unit) => {
+      if (unit === exceptUnit) return;
+      const move = activeMoves.get(unit);
+      if (move) {
+        occupied.add(destinationKey(move.destination));
+        return;
+      }
+      if (unit.dataset.task) {
+        occupied.add(destinationKey(getUnitPosition(unit)));
       }
     });
-    return best;
+
+    return occupied;
+  }
+
+  function pickDestination(action, unit) {
+    const destinations = TASK_DESTINATIONS[action];
+    if (!destinations?.length) return null;
+
+    const from = getUnitPosition(unit);
+    const occupied = occupiedDestinationKeys(unit);
+
+    const ranked = destinations
+      .map((point) => ({
+        point,
+        occupied: occupied.has(destinationKey(point)),
+        dist: (point.left - from.left) ** 2 + (point.top - from.top) ** 2,
+      }))
+      .sort((a, b) => {
+        if (a.occupied !== b.occupied) return a.occupied ? 1 : -1;
+        return a.dist - b.dist;
+      });
+
+    return ranked[0].point;
   }
 
   function easeInOut(t) {
     return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+  }
+
+  function clearWorking(unit) {
+    unit.dataset.working = "false";
+    unit.classList.remove("is-working");
+  }
+
+  function beginWorking(unit) {
+    const task = unit.dataset.task;
+    if (task === "farm" || task === "mine" || task === "chop-wood") {
+      unit.dataset.working = "true";
+      unit.classList.add("is-working");
+      return;
+    }
+    clearWorking(unit);
   }
 
   function stopUnit(unit) {
@@ -182,11 +270,16 @@
     const dx = destination.left - from.left;
     const dy = destination.top - from.top;
     const distance = Math.hypot(dx, dy);
+
     if (distance < 0.4) {
+      unit.style.left = `${destination.left}%`;
+      unit.style.top = `${destination.top}%`;
       stopUnit(unit);
+      beginWorking(unit);
       return;
     }
 
+    clearWorking(unit);
     const duration = Math.max(0.5, distance / MOVE_SPEED) * 1000;
     unit.classList.add("is-walking");
     unit.classList.toggle("is-flipped", dx < 0);
@@ -201,10 +294,10 @@
   function assignVillagerTask(unit, action) {
     if (!unit || !action) return;
     unit.dataset.task = action;
-    const destinations = TASK_DESTINATIONS[action];
-    if (!destinations?.length) return;
-    const from = getUnitPosition(unit);
-    const destination = nearestDestination(from, destinations);
+    clearWorking(unit);
+
+    const destination = pickDestination(action, unit);
+    if (!destination) return;
     moveUnit(unit, destination);
   }
 
@@ -225,6 +318,7 @@
         unit.style.left = `${move.destination.left}%`;
         unit.style.top = `${move.destination.top}%`;
         stopUnit(unit);
+        beginWorking(unit);
       }
     });
   }
