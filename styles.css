@@ -656,6 +656,16 @@ body {
     inset -18px 0 28px rgba(120, 75, 30, 0.08);
 }
 
+.round-intro__title {
+  margin: 0 0 0.85rem;
+  font-family: var(--font-bubble);
+  font-weight: 800;
+  font-size: clamp(1.8rem, 5vw, 2.5rem);
+  letter-spacing: 0.04em;
+  color: #3d2412;
+  text-shadow: 0 1px 0 rgba(255, 240, 200, 0.55);
+}
+
 .round-intro__text {
   margin: 0 auto 1.45rem;
   max-width: 30ch;

@@ -39,6 +39,12 @@
       level1: { firstAt: 9 * 60 + 30, interval: 30 },
       level2: { firstAt: 9 * 60, interval: 60 },
       finalWaveAt: 30,
+      nextRoundHref: "round-3.html",
+    },
+    3: {
+      level1: { firstAt: 9 * 60 + 30, interval: 30 },
+      level2: { firstAt: 9 * 60, interval: 60 },
+      finalWaveAt: 30,
       nextRoundHref: null,
     },
   };
