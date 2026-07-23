@@ -8,6 +8,13 @@
   const CASTLE_POSITION = { left: 50, top: 48 };
   // Outer stone ring on the map — goblins cannot pass inside this radius.
   const CASTLE_WALL_RADIUS_PERCENT = 11;
+  const MELEE_RANGE_INCHES = 0.45;
+  const ARCHER_RANGE_INCHES = 2;
+  const FOOTMAN_AGGRO_INCHES = 2;
+  const TOWER_RANGE_INCHES = 3;
+  const UNIT_BODY_INCHES = 0.28;
+  const CSS_PX_PER_INCH = 96;
+  const COMBAT_INTERVAL_SECONDS = 2;
 
   const GOBLIN_LEVELS = {
     1: {
@@ -17,6 +24,7 @@
       maxHp: 5,
       hitOn: 2,
       damage: 1,
+      rangeInches: MELEE_RANGE_INCHES,
     },
     2: {
       level: 2,
@@ -25,6 +33,16 @@
       maxHp: 15,
       hitOn: 4,
       damage: 2,
+      rangeInches: MELEE_RANGE_INCHES,
+    },
+    3: {
+      level: 3,
+      label: "Goblin Archer",
+      sprite: "assets/units/goblin-3.png",
+      maxHp: 5,
+      hitOn: 2,
+      damage: 1,
+      rangeInches: ARCHER_RANGE_INCHES,
     },
   };
 
@@ -32,13 +50,54 @@
     1: {
       level1: { firstAt: 9 * 60, interval: 60 },
       level2: null,
+      level3: null,
+      minuteWave: null,
+      specialWaves: [],
       finalWaveAt: 30,
       nextRoundHref: "round-2.html",
     },
     2: {
       level1: { firstAt: 9 * 60 + 30, interval: 30 },
       level2: { firstAt: 9 * 60, interval: 60 },
+      level3: null,
+      minuteWave: null,
+      specialWaves: [],
       finalWaveAt: 30,
+      nextRoundHref: "round-3.html",
+    },
+    3: {
+      level1: null,
+      level2: null,
+      level3: null,
+      // 9:00 and every minute: 4 level-one + 2 level-two
+      minuteWave: {
+        firstAt: 9 * 60,
+        interval: 60,
+        spawns: [
+          { level: 1, count: 4 },
+          { level: 2, count: 2 },
+        ],
+      },
+      // Extra assault waves at 6:30 and 1:30
+      specialWaves: [
+        {
+          at: 6 * 60 + 30,
+          spawns: [
+            { level: 1, count: 6 },
+            { level: 2, count: 3 },
+            { level: 3, count: 3 },
+          ],
+        },
+        {
+          at: 1 * 60 + 30,
+          spawns: [
+            { level: 1, count: 6 },
+            { level: 2, count: 3 },
+            { level: 3, count: 3 },
+          ],
+        },
+      ],
+      finalWaveAt: null,
       nextRoundHref: null,
     },
   };
@@ -55,14 +114,6 @@
     knight: { maxHp: 25 },
     goblin: { maxHp: 5 },
   };
-
-  const COMBAT_INTERVAL_SECONDS = 2;
-  const MELEE_RANGE_INCHES = 0.45;
-  const ARCHER_RANGE_INCHES = 2;
-  const FOOTMAN_AGGRO_INCHES = 2;
-  const TOWER_RANGE_INCHES = 3;
-  const UNIT_BODY_INCHES = 0.28;
-  const CSS_PX_PER_INCH = 96;
 
   const TASK_DESTINATIONS = {
     farm: [
@@ -201,6 +252,8 @@
   const castleHealthValueEl = document.getElementById("castle-health-value");
   const victoryOverlay = document.getElementById("victory-overlay");
   const nextRoundButton = document.getElementById("next-round-button");
+  const defeatOverlay = document.getElementById("defeat-overlay");
+  const retryRoundButton = document.getElementById("retry-round-button");
   const roundIntro = document.getElementById("round-intro");
   const roundIntroContinue = document.getElementById("round-intro-continue");
 
@@ -347,6 +400,9 @@
     if (!castleWallsStanding() || amount <= 0) return;
     castleHp = Math.max(0, castleHp - amount);
     renderCastleHealth();
+    if (castleHp <= 0) {
+      showDefeat();
+    }
   }
 
   function resolveGoblinCastleAttack(goblin) {
@@ -358,12 +414,17 @@
     return true;
   }
 
-  function showVictory() {
-    if (gameOver) return;
-    gameOver = true;
+  function endRoundInteraction() {
     cancelPlacement();
     closeMenus();
     clearSelection();
+  }
+
+  function showVictory() {
+    if (gameOver) return;
+    gameOver = true;
+    endRoundInteraction();
+    if (defeatOverlay) defeatOverlay.hidden = true;
     if (nextRoundButton) {
       if (ROUND_CONFIG.nextRoundHref) {
         nextRoundButton.href = ROUND_CONFIG.nextRoundHref;
@@ -381,12 +442,32 @@
     }
   }
 
+  function showDefeat() {
+    if (gameOver) return;
+    gameOver = true;
+    endRoundInteraction();
+    if (victoryOverlay) victoryOverlay.hidden = true;
+    if (retryRoundButton) {
+      const currentPage =
+        window.location.pathname.split("/").pop() ||
+        `round-${ROUND_NUMBER}.html`;
+      retryRoundButton.href = currentPage;
+    }
+    if (defeatOverlay) {
+      defeatOverlay.hidden = false;
+      document.querySelector(".game")?.classList.add("is-defeat");
+      retryRoundButton?.focus();
+    }
+  }
+
   function checkRoundEnd() {
     if (gameOver) return;
-    if (remainingSeconds > 0) return;
-    if (castleHp > 0) {
-      showVictory();
+    if (castleHp <= 0) {
+      showDefeat();
+      return;
     }
+    if (remainingSeconds > 0) return;
+    showVictory();
   }
 
   function collectResources() {
@@ -492,6 +573,11 @@
   function getAttackRangePercent(unit) {
     if (unit?.dataset.unit === "archer") {
       return getRangePercent(ARCHER_RANGE_INCHES);
+    }
+    if (unit?.dataset.unit === "goblin") {
+      const level = Number(unit.dataset.goblinLevel || 1);
+      const config = getGoblinLevelConfig(level);
+      return getRangePercent(config.rangeInches || MELEE_RANGE_INCHES);
     }
     return getMeleeRangePercent();
   }
@@ -1213,6 +1299,20 @@
     }
   }
 
+  function spawnGoblinGroup(level, count) {
+    for (let i = 0; i < count; i += 1) {
+      // Spread groups around the map edges instead of stacking on one point.
+      spawnGoblin(level, edgeSpawnForSide(i % 4));
+    }
+  }
+
+  function spawnWaveEntries(entries) {
+    if (!entries?.length) return;
+    entries.forEach((entry) => {
+      spawnGoblinGroup(entry.level, entry.count);
+    });
+  }
+
   function shouldSpawnOnInterval(secondsLeft, schedule) {
     if (!schedule || secondsLeft <= 0) return false;
     if (secondsLeft > schedule.firstAt) return false;
@@ -1227,8 +1327,51 @@
     return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level2);
   }
 
+  function shouldSpawnLevel3Goblin(secondsLeft) {
+    return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level3);
+  }
+
+  function shouldSpawnMinuteWave(secondsLeft) {
+    return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.minuteWave);
+  }
+
+  function getSpecialWave(secondsLeft) {
+    return (
+      ROUND_CONFIG.specialWaves?.find((wave) => wave.at === secondsLeft) || null
+    );
+  }
+
   function shouldSpawnFinalGoblinWave(secondsLeft) {
-    return secondsLeft === ROUND_CONFIG.finalWaveAt;
+    return (
+      ROUND_CONFIG.finalWaveAt != null &&
+      secondsLeft === ROUND_CONFIG.finalWaveAt
+    );
+  }
+
+  function spawnRoundGoblins(secondsLeft) {
+    if (shouldSpawnFinalGoblinWave(secondsLeft)) {
+      spawnGoblinsFromAllDirections(1);
+      return;
+    }
+
+    const specialWave = getSpecialWave(secondsLeft);
+    if (specialWave) {
+      spawnWaveEntries(specialWave.spawns);
+    }
+
+    if (shouldSpawnMinuteWave(secondsLeft)) {
+      spawnWaveEntries(ROUND_CONFIG.minuteWave.spawns);
+    }
+
+    if (shouldSpawnLevel1Goblin(secondsLeft)) {
+      spawnGoblin(1);
+    }
+    if (shouldSpawnLevel2Goblin(secondsLeft)) {
+      spawnGoblin(2);
+    }
+    if (shouldSpawnLevel3Goblin(secondsLeft)) {
+      spawnGoblin(3);
+    }
   }
 
   function distanceBetween(a, b) {
@@ -1286,14 +1429,14 @@
     };
   }
 
-  function findNearbyMilitaryMelee(goblin) {
+  function findNearbyMilitaryInRange(goblin) {
     const from = getUnitPosition(goblin);
-    const meleeRange = getMeleeRangePercent();
+    const attackRange = getAttackRangePercent(goblin);
     let best = null;
 
     getMilitaryUnits().forEach((unit) => {
       const dist = distanceBetween(from, getUnitPosition(unit));
-      if (dist <= meleeRange && (!best || dist < best.dist)) {
+      if (dist <= attackRange && (!best || dist < best.dist)) {
         best = { friend: unit, dist };
       }
     });
@@ -1301,17 +1444,17 @@
     return best;
   }
 
-  function findNearbyVillagerMelee(goblin) {
+  function findNearbyVillagerInRange(goblin) {
     if (isGoblinEngagedWithMilitary(goblin)) return null;
 
     const from = getUnitPosition(goblin);
-    const meleeRange = getMeleeRangePercent();
+    const attackRange = getAttackRangePercent(goblin);
     let best = null;
 
     villagers.forEach((villager) => {
       if (!villager.isConnected) return;
       const dist = distanceBetween(from, getUnitPosition(villager));
-      if (dist <= meleeRange && (!best || dist < best.dist)) {
+      if (dist <= attackRange && (!best || dist < best.dist)) {
         best = { friend: villager, dist };
       }
     });
@@ -1355,7 +1498,7 @@
       if (!goblin.isConnected) return;
 
       const from = getUnitPosition(goblin);
-      const nearbyMilitary = findNearbyMilitaryMelee(goblin);
+      const nearbyMilitary = findNearbyMilitaryInRange(goblin);
 
       if (nearbyMilitary) {
         goblin.dataset.target = nearbyMilitary.friend.dataset.unit || "military";
@@ -1368,7 +1511,7 @@
         return;
       }
 
-      const nearbyVillager = findNearbyVillagerMelee(goblin);
+      const nearbyVillager = findNearbyVillagerInRange(goblin);
       if (nearbyVillager) {
         goblin.dataset.target = "villager";
         goblin.classList.remove("is-walking");
@@ -1446,16 +1589,7 @@
     if (remainingSeconds > 0) {
       remainingSeconds -= 1;
       updateTimer();
-      if (shouldSpawnFinalGoblinWave(remainingSeconds)) {
-        spawnGoblinsFromAllDirections(1);
-      } else {
-        if (shouldSpawnLevel1Goblin(remainingSeconds)) {
-          spawnGoblin(1);
-        }
-        if (shouldSpawnLevel2Goblin(remainingSeconds)) {
-          spawnGoblin(2);
-        }
-      }
+      spawnRoundGoblins(remainingSeconds);
     } else {
       updateTimer();
     }
