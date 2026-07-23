@@ -8,6 +8,13 @@
   const CASTLE_POSITION = { left: 50, top: 48 };
   // Outer stone ring on the map — goblins cannot pass inside this radius.
   const CASTLE_WALL_RADIUS_PERCENT = 11;
+  const MELEE_RANGE_INCHES = 0.45;
+  const ARCHER_RANGE_INCHES = 2;
+  const FOOTMAN_AGGRO_INCHES = 2;
+  const TOWER_RANGE_INCHES = 3;
+  const UNIT_BODY_INCHES = 0.28;
+  const CSS_PX_PER_INCH = 96;
+  const COMBAT_INTERVAL_SECONDS = 2;
 
   const GOBLIN_LEVELS = {
     1: {
@@ -17,6 +24,7 @@
       maxHp: 5,
       hitOn: 2,
       damage: 1,
+      rangeInches: MELEE_RANGE_INCHES,
     },
     2: {
       level: 2,
@@ -25,6 +33,16 @@
       maxHp: 15,
       hitOn: 4,
       damage: 2,
+      rangeInches: MELEE_RANGE_INCHES,
+    },
+    3: {
+      level: 3,
+      label: "Goblin Archer",
+      sprite: "assets/units/goblin-3.png",
+      maxHp: 5,
+      hitOn: 2,
+      damage: 1,
+      rangeInches: ARCHER_RANGE_INCHES,
     },
   };
 
@@ -32,18 +50,21 @@
     1: {
       level1: { firstAt: 9 * 60, interval: 60 },
       level2: null,
+      level3: null,
       finalWaveAt: 30,
       nextRoundHref: "round-2.html",
     },
     2: {
       level1: { firstAt: 9 * 60 + 30, interval: 30 },
       level2: { firstAt: 9 * 60, interval: 60 },
+      level3: null,
       finalWaveAt: 30,
       nextRoundHref: "round-3.html",
     },
     3: {
       level1: { firstAt: 9 * 60 + 30, interval: 30 },
       level2: { firstAt: 9 * 60, interval: 60 },
+      level3: { firstAt: 9 * 60, interval: 60 },
       finalWaveAt: 30,
       nextRoundHref: null,
     },
@@ -61,14 +82,6 @@
     knight: { maxHp: 25 },
     goblin: { maxHp: 5 },
   };
-
-  const COMBAT_INTERVAL_SECONDS = 2;
-  const MELEE_RANGE_INCHES = 0.45;
-  const ARCHER_RANGE_INCHES = 2;
-  const FOOTMAN_AGGRO_INCHES = 2;
-  const TOWER_RANGE_INCHES = 3;
-  const UNIT_BODY_INCHES = 0.28;
-  const CSS_PX_PER_INCH = 96;
 
   const TASK_DESTINATIONS = {
     farm: [
@@ -498,6 +511,11 @@
   function getAttackRangePercent(unit) {
     if (unit?.dataset.unit === "archer") {
       return getRangePercent(ARCHER_RANGE_INCHES);
+    }
+    if (unit?.dataset.unit === "goblin") {
+      const level = Number(unit.dataset.goblinLevel || 1);
+      const config = getGoblinLevelConfig(level);
+      return getRangePercent(config.rangeInches || MELEE_RANGE_INCHES);
     }
     return getMeleeRangePercent();
   }
@@ -1233,6 +1251,10 @@
     return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level2);
   }
 
+  function shouldSpawnLevel3Goblin(secondsLeft) {
+    return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level3);
+  }
+
   function shouldSpawnFinalGoblinWave(secondsLeft) {
     return secondsLeft === ROUND_CONFIG.finalWaveAt;
   }
@@ -1292,14 +1314,14 @@
     };
   }
 
-  function findNearbyMilitaryMelee(goblin) {
+  function findNearbyMilitaryInRange(goblin) {
     const from = getUnitPosition(goblin);
-    const meleeRange = getMeleeRangePercent();
+    const attackRange = getAttackRangePercent(goblin);
     let best = null;
 
     getMilitaryUnits().forEach((unit) => {
       const dist = distanceBetween(from, getUnitPosition(unit));
-      if (dist <= meleeRange && (!best || dist < best.dist)) {
+      if (dist <= attackRange && (!best || dist < best.dist)) {
         best = { friend: unit, dist };
       }
     });
@@ -1307,17 +1329,17 @@
     return best;
   }
 
-  function findNearbyVillagerMelee(goblin) {
+  function findNearbyVillagerInRange(goblin) {
     if (isGoblinEngagedWithMilitary(goblin)) return null;
 
     const from = getUnitPosition(goblin);
-    const meleeRange = getMeleeRangePercent();
+    const attackRange = getAttackRangePercent(goblin);
     let best = null;
 
     villagers.forEach((villager) => {
       if (!villager.isConnected) return;
       const dist = distanceBetween(from, getUnitPosition(villager));
-      if (dist <= meleeRange && (!best || dist < best.dist)) {
+      if (dist <= attackRange && (!best || dist < best.dist)) {
         best = { friend: villager, dist };
       }
     });
@@ -1361,7 +1383,7 @@
       if (!goblin.isConnected) return;
 
       const from = getUnitPosition(goblin);
-      const nearbyMilitary = findNearbyMilitaryMelee(goblin);
+      const nearbyMilitary = findNearbyMilitaryInRange(goblin);
 
       if (nearbyMilitary) {
         goblin.dataset.target = nearbyMilitary.friend.dataset.unit || "military";
@@ -1374,7 +1396,7 @@
         return;
       }
 
-      const nearbyVillager = findNearbyVillagerMelee(goblin);
+      const nearbyVillager = findNearbyVillagerInRange(goblin);
       if (nearbyVillager) {
         goblin.dataset.target = "villager";
         goblin.classList.remove("is-walking");
@@ -1460,6 +1482,9 @@
         }
         if (shouldSpawnLevel2Goblin(remainingSeconds)) {
           spawnGoblin(2);
+        }
+        if (shouldSpawnLevel3Goblin(remainingSeconds)) {
+          spawnGoblin(3);
         }
       }
     } else {
