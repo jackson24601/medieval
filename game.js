@@ -201,6 +201,8 @@
   const castleHealthValueEl = document.getElementById("castle-health-value");
   const victoryOverlay = document.getElementById("victory-overlay");
   const nextRoundButton = document.getElementById("next-round-button");
+  const defeatOverlay = document.getElementById("defeat-overlay");
+  const retryRoundButton = document.getElementById("retry-round-button");
   const roundIntro = document.getElementById("round-intro");
   const roundIntroContinue = document.getElementById("round-intro-continue");
 
@@ -347,6 +349,9 @@
     if (!castleWallsStanding() || amount <= 0) return;
     castleHp = Math.max(0, castleHp - amount);
     renderCastleHealth();
+    if (castleHp <= 0) {
+      showDefeat();
+    }
   }
 
   function resolveGoblinCastleAttack(goblin) {
@@ -358,12 +363,17 @@
     return true;
   }
 
-  function showVictory() {
-    if (gameOver) return;
-    gameOver = true;
+  function endRoundInteraction() {
     cancelPlacement();
     closeMenus();
     clearSelection();
+  }
+
+  function showVictory() {
+    if (gameOver) return;
+    gameOver = true;
+    endRoundInteraction();
+    if (defeatOverlay) defeatOverlay.hidden = true;
     if (nextRoundButton) {
       if (ROUND_CONFIG.nextRoundHref) {
         nextRoundButton.href = ROUND_CONFIG.nextRoundHref;
@@ -381,12 +391,32 @@
     }
   }
 
+  function showDefeat() {
+    if (gameOver) return;
+    gameOver = true;
+    endRoundInteraction();
+    if (victoryOverlay) victoryOverlay.hidden = true;
+    if (retryRoundButton) {
+      const currentPage =
+        window.location.pathname.split("/").pop() ||
+        `round-${ROUND_NUMBER}.html`;
+      retryRoundButton.href = currentPage;
+    }
+    if (defeatOverlay) {
+      defeatOverlay.hidden = false;
+      document.querySelector(".game")?.classList.add("is-defeat");
+      retryRoundButton?.focus();
+    }
+  }
+
   function checkRoundEnd() {
     if (gameOver) return;
-    if (remainingSeconds > 0) return;
-    if (castleHp > 0) {
-      showVictory();
+    if (castleHp <= 0) {
+      showDefeat();
+      return;
     }
+    if (remainingSeconds > 0) return;
+    showVictory();
   }
 
   function collectResources() {
