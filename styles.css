@@ -1002,17 +1002,9 @@ body {
   z-index: 12;
 }
 
-.unit.is-selected,
-.unit[aria-pressed="true"] {
-  filter:
-    drop-shadow(0 0 0 2px #fff6d8)
-    drop-shadow(0 0 0 5px #e0b24a)
-    drop-shadow(0 4px 4px rgba(20, 12, 4, 0.5));
-  z-index: 13;
-}
-
-.unit.is-selected::after,
-.unit[aria-pressed="true"]::after {
+/* Always-on ground halo for friendly units so they stay easy to spot. */
+.unit--villager::after,
+.unit--military::after {
   content: "";
   position: absolute;
   left: 50%;
@@ -1024,6 +1016,23 @@ body {
   border-radius: 50%;
   box-shadow: 0 0 0 2px #c9891a;
   pointer-events: none;
+}
+
+.unit.is-selected,
+.unit[aria-pressed="true"] {
+  filter:
+    drop-shadow(0 0 0 2px #fff6d8)
+    drop-shadow(0 0 0 5px #e0b24a)
+    drop-shadow(0 4px 4px rgba(20, 12, 4, 0.5));
+  z-index: 13;
+}
+
+.unit.is-selected::after,
+.unit[aria-pressed="true"]::after {
+  border-color: #fffbe8;
+  box-shadow:
+    0 0 0 2px #e0b24a,
+    0 0 8px rgba(240, 193, 75, 0.75);
 }
 
 @keyframes villager-idle {
