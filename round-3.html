@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Fraunces:opsz,wght@9..144,500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=goblin3" />
+    <link rel="stylesheet" href="styles.css?v=defeat-r3" />
   </head>
   <body class="game-body">
     <main class="game" data-round="3" aria-label="Round three battlefield">
@@ -404,8 +404,25 @@
           <a class="victory__next" href="#" id="next-round-button" hidden>Next Round</a>
         </div>
       </div>
+
+      <div
+        class="defeat"
+        id="defeat-overlay"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="defeat-title"
+      >
+        <div class="defeat__veil" aria-hidden="true"></div>
+        <div class="defeat__content">
+          <h2 class="defeat__title" id="defeat-title">Defeat</h2>
+          <a class="defeat__retry" href="round-3.html" id="retry-round-button"
+            >Try Again</a
+          >
+        </div>
+      </div>
     </main>
 
-    <script src="game.js?v=r3-spawns" defer></script>
+    <script src="game.js?v=defeat-r3" defer></script>
   </body>
 </html>
