@@ -1012,10 +1012,18 @@ body {
   width: 62%;
   height: 14%;
   transform: translateX(-50%);
-  border: 2px solid #fff6d8;
   border-radius: 50%;
-  box-shadow: 0 0 0 2px #c9891a;
   pointer-events: none;
+}
+
+.unit--villager::after {
+  border: 2px solid #fff6d8;
+  box-shadow: 0 0 0 2px #c9891a;
+}
+
+.unit--military::after {
+  border: 2px solid #f0b0a4;
+  box-shadow: 0 0 0 2px #b33a2b;
 }
 
 .unit.is-selected,
@@ -1027,12 +1035,28 @@ body {
   z-index: 13;
 }
 
-.unit.is-selected::after,
-.unit[aria-pressed="true"]::after {
+.unit--military.is-selected,
+.unit--military[aria-pressed="true"] {
+  filter:
+    drop-shadow(0 0 0 2px #f0b0a4)
+    drop-shadow(0 0 0 5px #c94a3a)
+    drop-shadow(0 4px 4px rgba(20, 12, 4, 0.5));
+}
+
+.unit--villager.is-selected::after,
+.unit--villager[aria-pressed="true"]::after {
   border-color: #fffbe8;
   box-shadow:
     0 0 0 2px #e0b24a,
     0 0 8px rgba(240, 193, 75, 0.75);
+}
+
+.unit--military.is-selected::after,
+.unit--military[aria-pressed="true"]::after {
+  border-color: #ffd2c8;
+  box-shadow:
+    0 0 0 2px #d94a38,
+    0 0 8px rgba(200, 60, 45, 0.75);
 }
 
 @keyframes villager-idle {
