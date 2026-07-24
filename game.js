@@ -165,22 +165,22 @@
       nextRoundHref: "round-5.html",
     },
     5: {
-      // Placeholder pressure until the final horde rules land.
-      level1: { firstAt: 9 * 60 + 30, interval: 30, count: 2 },
-      level2: { firstAt: 9 * 60, interval: 60, count: 2 },
-      level3: null,
-      level3At: [
-        8 * 60 + 45,
-        7 * 60 + 30,
-        6 * 60 + 30,
-        5 * 60 + 45,
-        3 * 60 + 45,
-        2 * 60 + 30,
-        1 * 60,
-      ],
-      level4: { firstAt: 8 * 60, interval: 120, count: 1 },
+      // 9:30 and every minute: 4 level-one
+      level1: { firstAt: 9 * 60 + 30, interval: 60, count: 4 },
+      // 9:00 and every minute: 3 level-two
+      level2: { firstAt: 9 * 60, interval: 60, count: 3 },
+      // 8:45 and every 45s: 1 archer + 1 battering ram
+      level3: { firstAt: 8 * 60 + 45, interval: 45, count: 1 },
+      level4: { firstAt: 8 * 60 + 45, interval: 45, count: 1 },
       minuteWave: null,
-      specialWaves: [],
+      // 5:00: six extra level-one (on top of the regular schedule)
+      specialWaves: [
+        {
+          at: 5 * 60,
+          spawns: [{ level: 1, count: 6 }],
+        },
+      ],
+      // 0:30: two of every type except the Goblin King
       finalWaveAt: 30,
       finalWaveSpawns: [
         { level: 1, count: 2 },
