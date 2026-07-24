@@ -98,6 +98,40 @@
         },
       ],
       finalWaveAt: null,
+      nextRoundHref: "round-4.html",
+    },
+    4: {
+      level1: null,
+      level2: null,
+      level3: null,
+      // Placeholder: same pressure as round three until battering rams land.
+      minuteWave: {
+        firstAt: 9 * 60,
+        interval: 60,
+        spawns: [
+          { level: 1, count: 4 },
+          { level: 2, count: 2 },
+        ],
+      },
+      specialWaves: [
+        {
+          at: 6 * 60 + 30,
+          spawns: [
+            { level: 1, count: 6 },
+            { level: 2, count: 3 },
+            { level: 3, count: 3 },
+          ],
+        },
+        {
+          at: 1 * 60 + 30,
+          spawns: [
+            { level: 1, count: 6 },
+            { level: 2, count: 3 },
+            { level: 3, count: 3 },
+          ],
+        },
+      ],
+      finalWaveAt: null,
       nextRoundHref: null,
     },
   };
