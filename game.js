@@ -191,7 +191,8 @@
       // Goblin King enters when the round intro is dismissed.
       spawnBossOnStart: true,
       bossLevel: 5,
-      nextRoundHref: null,
+      nextRoundHref: "victory.html",
+      autoAdvanceOnVictory: true,
     },
   };
 
@@ -561,6 +562,12 @@
     gameOver = true;
     endRoundInteraction();
     if (defeatOverlay) defeatOverlay.hidden = true;
+
+    if (ROUND_CONFIG.autoAdvanceOnVictory && ROUND_CONFIG.nextRoundHref) {
+      window.location.assign(ROUND_CONFIG.nextRoundHref);
+      return;
+    }
+
     if (nextRoundButton) {
       if (ROUND_CONFIG.nextRoundHref) {
         nextRoundButton.href = ROUND_CONFIG.nextRoundHref;
