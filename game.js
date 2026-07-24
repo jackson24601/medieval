@@ -122,40 +122,33 @@
       nextRoundHref: "round-4.html",
     },
     4: {
-      level1: null,
-      level2: null,
+      // 9:30 and every 30s: 2 level-one
+      level1: { firstAt: 9 * 60 + 30, interval: 30, count: 2 },
+      // 9:00 and every minute: 2 level-two
+      level2: { firstAt: 9 * 60, interval: 60, count: 2 },
       level3: null,
-      // Same goblin pressure as round three, plus battering rams each minute.
-      minuteWave: {
-        firstAt: 9 * 60,
-        interval: 60,
-        spawns: [
-          { level: 1, count: 4 },
-          { level: 2, count: 2 },
-          { level: 4, count: 1 },
-        ],
-      },
-      specialWaves: [
-        {
-          at: 6 * 60 + 30,
-          spawns: [
-            { level: 1, count: 6 },
-            { level: 2, count: 3 },
-            { level: 3, count: 3 },
-            { level: 4, count: 2 },
-          ],
-        },
-        {
-          at: 1 * 60 + 30,
-          spawns: [
-            { level: 1, count: 6 },
-            { level: 2, count: 3 },
-            { level: 3, count: 3 },
-            { level: 4, count: 2 },
-          ],
-        },
+      // Timed archer spawns
+      level3At: [
+        8 * 60 + 45,
+        7 * 60 + 30,
+        6 * 60 + 30,
+        5 * 60 + 45,
+        3 * 60 + 45,
+        2 * 60 + 30,
+        1 * 60,
       ],
-      finalWaveAt: null,
+      // 8:00 and every 2 minutes: 1 battering ram
+      level4: { firstAt: 8 * 60, interval: 120, count: 1 },
+      minuteWave: null,
+      specialWaves: [],
+      // 0:30: two of each unit
+      finalWaveAt: 30,
+      finalWaveSpawns: [
+        { level: 1, count: 2 },
+        { level: 2, count: 2 },
+        { level: 3, count: 2 },
+        { level: 4, count: 2 },
+      ],
       nextRoundHref: null,
     },
   };
@@ -1430,6 +1423,10 @@
     return (schedule.firstAt - secondsLeft) % schedule.interval === 0;
   }
 
+  function scheduleSpawnCount(schedule) {
+    return Math.max(1, Number(schedule?.count || 1));
+  }
+
   function shouldSpawnLevel1Goblin(secondsLeft) {
     return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level1);
   }
@@ -1440,6 +1437,14 @@
 
   function shouldSpawnLevel3Goblin(secondsLeft) {
     return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level3);
+  }
+
+  function shouldSpawnLevel4Goblin(secondsLeft) {
+    return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level4);
+  }
+
+  function shouldSpawnTimedLevel3Goblin(secondsLeft) {
+    return Boolean(ROUND_CONFIG.level3At?.includes(secondsLeft));
   }
 
   function shouldSpawnMinuteWave(secondsLeft) {
@@ -1461,7 +1466,11 @@
 
   function spawnRoundGoblins(secondsLeft) {
     if (shouldSpawnFinalGoblinWave(secondsLeft)) {
-      spawnGoblinsFromAllDirections(1);
+      if (ROUND_CONFIG.finalWaveSpawns?.length) {
+        spawnWaveEntries(ROUND_CONFIG.finalWaveSpawns);
+      } else {
+        spawnGoblinsFromAllDirections(1);
+      }
       return;
     }
 
@@ -1475,13 +1484,19 @@
     }
 
     if (shouldSpawnLevel1Goblin(secondsLeft)) {
-      spawnGoblin(1);
+      spawnGoblinGroup(1, scheduleSpawnCount(ROUND_CONFIG.level1));
     }
     if (shouldSpawnLevel2Goblin(secondsLeft)) {
-      spawnGoblin(2);
+      spawnGoblinGroup(2, scheduleSpawnCount(ROUND_CONFIG.level2));
     }
     if (shouldSpawnLevel3Goblin(secondsLeft)) {
+      spawnGoblinGroup(3, scheduleSpawnCount(ROUND_CONFIG.level3));
+    }
+    if (shouldSpawnTimedLevel3Goblin(secondsLeft)) {
       spawnGoblin(3);
+    }
+    if (shouldSpawnLevel4Goblin(secondsLeft)) {
+      spawnGoblinGroup(4, scheduleSpawnCount(ROUND_CONFIG.level4));
     }
   }
 
