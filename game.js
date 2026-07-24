@@ -15,6 +15,8 @@
   const UNIT_BODY_INCHES = 0.28;
   const CSS_PX_PER_INCH = 96;
   const COMBAT_INTERVAL_SECONDS = 2;
+  const BATTERING_RAM_ATTACK_SECONDS = 5;
+  const BATTERING_RAM_CASTLE_DAMAGE = 10;
 
   const GOBLIN_LEVELS = {
     1: {
@@ -25,6 +27,8 @@
       hitOn: 2,
       damage: 1,
       rangeInches: MELEE_RANGE_INCHES,
+      speedScale: 1,
+      siegesCastle: false,
     },
     2: {
       level: 2,
@@ -34,6 +38,8 @@
       hitOn: 4,
       damage: 2,
       rangeInches: MELEE_RANGE_INCHES,
+      speedScale: 1,
+      siegesCastle: false,
     },
     3: {
       level: 3,
@@ -43,6 +49,21 @@
       hitOn: 2,
       damage: 1,
       rangeInches: ARCHER_RANGE_INCHES,
+      speedScale: 1,
+      siegesCastle: false,
+    },
+    4: {
+      level: 4,
+      label: "Battering Ram",
+      sprite: "assets/units/goblin-ram.png",
+      maxHp: 20,
+      hitOn: 7,
+      damage: 0,
+      rangeInches: MELEE_RANGE_INCHES,
+      speedScale: 0.5,
+      siegesCastle: true,
+      castleDamage: BATTERING_RAM_CASTLE_DAMAGE,
+      castleAttackSeconds: BATTERING_RAM_ATTACK_SECONDS,
     },
   };
 
@@ -104,13 +125,14 @@
       level1: null,
       level2: null,
       level3: null,
-      // Placeholder: same pressure as round three until battering rams land.
+      // Same goblin pressure as round three, plus battering rams each minute.
       minuteWave: {
         firstAt: 9 * 60,
         interval: 60,
         spawns: [
           { level: 1, count: 4 },
           { level: 2, count: 2 },
+          { level: 4, count: 1 },
         ],
       },
       specialWaves: [
@@ -120,6 +142,7 @@
             { level: 1, count: 6 },
             { level: 2, count: 3 },
             { level: 3, count: 3 },
+            { level: 4, count: 2 },
           ],
         },
         {
@@ -128,6 +151,7 @@
             { level: 1, count: 6 },
             { level: 2, count: 3 },
             { level: 3, count: 3 },
+            { level: 4, count: 2 },
           ],
         },
       ],
@@ -440,12 +464,55 @@
   }
 
   function resolveGoblinCastleAttack(goblin) {
-    if (!goblinInCastleMelee(goblin)) return false;
+    if (!goblinInCastleMelee(goblin) || isBatteringRam(goblin)) return false;
     const damage = rollAttackDamage(goblin);
     if (damage <= 0) return false;
     playAttackShake(goblin);
     applyCastleDamage(damage);
     return true;
+  }
+
+  function resolveBatteringRamSiege(ram) {
+    if (!ram?.isConnected || !isBatteringRam(ram)) return false;
+
+    const config = getGoblinLevelConfig(4);
+    const structureHit = findNearbyStructure(ram);
+    const atCastle = goblinInCastleMelee(ram);
+    if (!atCastle && structureHit?.kind !== "structure") {
+      ram.dataset.ramCooldown = "0";
+      return false;
+    }
+
+    const cooldown = Number(ram.dataset.ramCooldown || 0) + 1;
+    const interval = config.castleAttackSeconds || BATTERING_RAM_ATTACK_SECONDS;
+    if (cooldown < interval) {
+      ram.dataset.ramCooldown = String(cooldown);
+      return false;
+    }
+
+    ram.dataset.ramCooldown = "0";
+    playAttackShake(ram);
+    const damage = config.castleDamage || BATTERING_RAM_CASTLE_DAMAGE;
+
+    if (structureHit?.kind === "structure" && structureHit.structure) {
+      applyDamage(structureHit.structure, damage);
+      return true;
+    }
+
+    if (atCastle) {
+      applyCastleDamage(damage);
+      return true;
+    }
+
+    return false;
+  }
+
+  function tickBatteringRams() {
+    goblins.forEach((goblin) => {
+      if (goblin.isConnected && isBatteringRam(goblin)) {
+        resolveBatteringRamSiege(goblin);
+      }
+    });
   }
 
   function endRoundInteraction() {
@@ -583,6 +650,13 @@
 
   function getGoblinLevelConfig(level) {
     return GOBLIN_LEVELS[level] || GOBLIN_LEVELS[1];
+  }
+
+  function isBatteringRam(unit) {
+    return (
+      unit?.dataset.unit === "goblin" &&
+      Number(unit.dataset.goblinLevel || 1) === 4
+    );
   }
 
   function getUnitStats(unit) {
@@ -985,6 +1059,9 @@
 
     foes.forEach((goblin) => {
       if (!goblin.isConnected) return;
+
+      // Battering rams ignore villagers and military; they only siege.
+      if (isBatteringRam(goblin)) return;
 
       const nearestMilitary = findNearestAttackTarget(
         goblin,
@@ -1430,6 +1507,15 @@
   }
 
   function getGoblinTarget(goblin) {
+    if (isBatteringRam(goblin)) {
+      return {
+        left: CASTLE_POSITION.left,
+        top: CASTLE_POSITION.top,
+        kind: "castle",
+        unit: null,
+      };
+    }
+
     if (isGoblinEngagedWithMilitary(goblin)) {
       const nearestMilitary = findNearestMilitaryForGoblin(goblin);
       if (nearestMilitary) {
@@ -1525,36 +1611,44 @@
   }
 
   function updateGoblins(dt) {
-    const step = (GOBLIN_SPEED * dt) / 1000;
     const bodyPad = getRangePercent(UNIT_BODY_INCHES);
 
     goblins.forEach((goblin) => {
       if (!goblin.isConnected) return;
 
       const from = getUnitPosition(goblin);
-      const nearbyMilitary = findNearbyMilitaryInRange(goblin);
+      const ram = isBatteringRam(goblin);
+      const speedScale = getGoblinLevelConfig(
+        Number(goblin.dataset.goblinLevel || 1)
+      ).speedScale;
+      const step = (GOBLIN_SPEED * (speedScale || 1) * dt) / 1000;
 
-      if (nearbyMilitary) {
-        goblin.dataset.target = nearbyMilitary.friend.dataset.unit || "military";
-        goblin.classList.remove("is-walking");
-        goblin.dataset.frame = "0";
-        goblin.classList.toggle(
-          "is-flipped",
-          getUnitPosition(nearbyMilitary.friend).left < from.left
-        );
-        return;
-      }
+      if (!ram) {
+        const nearbyMilitary = findNearbyMilitaryInRange(goblin);
 
-      const nearbyVillager = findNearbyVillagerInRange(goblin);
-      if (nearbyVillager) {
-        goblin.dataset.target = "villager";
-        goblin.classList.remove("is-walking");
-        goblin.dataset.frame = "0";
-        goblin.classList.toggle(
-          "is-flipped",
-          getUnitPosition(nearbyVillager.friend).left < from.left
-        );
-        return;
+        if (nearbyMilitary) {
+          goblin.dataset.target =
+            nearbyMilitary.friend.dataset.unit || "military";
+          goblin.classList.remove("is-walking");
+          goblin.dataset.frame = "0";
+          goblin.classList.toggle(
+            "is-flipped",
+            getUnitPosition(nearbyMilitary.friend).left < from.left
+          );
+          return;
+        }
+
+        const nearbyVillager = findNearbyVillagerInRange(goblin);
+        if (nearbyVillager) {
+          goblin.dataset.target = "villager";
+          goblin.classList.remove("is-walking");
+          goblin.dataset.frame = "0";
+          goblin.classList.toggle(
+            "is-flipped",
+            getUnitPosition(nearbyVillager.friend).left < from.left
+          );
+          return;
+        }
       }
 
       const nearbyStructure = findNearbyStructure(goblin);
@@ -1562,7 +1656,10 @@
         goblin.dataset.target = nearbyStructure.kind;
         goblin.classList.remove("is-walking");
         goblin.dataset.frame = "0";
-        goblin.classList.toggle("is-flipped", nearbyStructure.pos.left < from.left);
+        goblin.classList.toggle(
+          "is-flipped",
+          nearbyStructure.pos.left < from.left
+        );
         return;
       }
 
@@ -1636,6 +1733,7 @@
 
     tickRecruitJobs();
     tickBuildJobs();
+    tickBatteringRams();
     refreshEngagements();
 
     combatCountdown -= 1;

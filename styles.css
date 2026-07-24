@@ -980,6 +980,12 @@ body {
   z-index: 13;
 }
 
+.unit--goblin-4 {
+  width: clamp(4.2rem, 7.2vw, 6.2rem);
+  aspect-ratio: 5 / 4;
+  z-index: 13;
+}
+
 .unit--goblin.is-walking .unit__sprite--image {
   animation: villager-work 0.55s ease-in-out infinite;
 }
