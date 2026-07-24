@@ -65,6 +65,19 @@
       castleDamage: BATTERING_RAM_CASTLE_DAMAGE,
       castleAttackSeconds: BATTERING_RAM_ATTACK_SECONDS,
     },
+    5: {
+      level: 5,
+      label: "Goblin King",
+      sprite: "assets/units/goblin-king.png",
+      maxHp: 50,
+      // Guaranteed 5 damage every combat tick (2 seconds).
+      fixedDamage: 5,
+      hitOn: 1,
+      damage: 5,
+      rangeInches: MELEE_RANGE_INCHES,
+      speedScale: 1,
+      siegesCastle: false,
+    },
   };
 
   const ROUND_CONFIGS = {
@@ -152,7 +165,7 @@
       nextRoundHref: "round-5.html",
     },
     5: {
-      // Placeholder pressure until the goblin king / final horde rules land.
+      // Placeholder pressure until the final horde rules land.
       level1: { firstAt: 9 * 60 + 30, interval: 30, count: 2 },
       level2: { firstAt: 9 * 60, interval: 60, count: 2 },
       level3: null,
@@ -175,6 +188,9 @@
         { level: 3, count: 2 },
         { level: 4, count: 2 },
       ],
+      // Goblin King enters when the round intro is dismissed.
+      spawnBossOnStart: true,
+      bossLevel: 5,
       nextRoundHref: null,
     },
   };
@@ -678,6 +694,13 @@
     );
   }
 
+  function isGoblinKing(unit) {
+    return (
+      unit?.dataset.unit === "goblin" &&
+      Number(unit.dataset.goblinLevel || 1) === 5
+    );
+  }
+
   function getUnitStats(unit) {
     if (!unit) return UNIT_STATS.villager;
     if (unit.dataset.unit === "goblin") {
@@ -734,6 +757,7 @@
     if (type === "goblin") {
       const level = Number(unit.dataset.goblinLevel || 1);
       const config = getGoblinLevelConfig(level);
+      if (config.fixedDamage != null) return config.fixedDamage;
       return roll >= config.hitOn ? config.damage : 0;
     }
 
@@ -1406,7 +1430,9 @@
     button.dataset.goblinLevel = String(level);
     button.dataset.unitId = unitId;
     button.setAttribute("aria-pressed", "false");
-    button.setAttribute("aria-label", `${config.label} Level ${level}`);
+    const label =
+      level === 5 ? config.label : `${config.label} Level ${level}`;
+    button.setAttribute("aria-label", label);
     button.style.left = `${spawn.left}%`;
     button.style.top = `${spawn.top}%`;
     button.innerHTML = `
@@ -1753,6 +1779,10 @@
     roundIntro.hidden = true;
     introActive = false;
     document.querySelector(".game")?.classList.remove("is-intro");
+
+    if (ROUND_CONFIG.spawnBossOnStart && ROUND_CONFIG.bossLevel) {
+      spawnGoblin(ROUND_CONFIG.bossLevel);
+    }
   }
 
   function tick() {
