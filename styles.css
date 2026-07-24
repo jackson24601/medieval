@@ -980,6 +980,17 @@ body {
   z-index: 13;
 }
 
+.unit--goblin-4 {
+  width: clamp(4.2rem, 7.2vw, 6.2rem);
+  aspect-ratio: 5 / 4;
+  z-index: 13;
+}
+
+.unit--goblin-5 {
+  width: clamp(3.75rem, 6.5vw, 5.5rem);
+  z-index: 14;
+}
+
 .unit--goblin.is-walking .unit__sprite--image {
   animation: villager-work 0.55s ease-in-out infinite;
 }
@@ -1511,6 +1522,104 @@ body {
   }
 }
 
+/* —— Victory feast ending —— */
+
+.feast-body {
+  background: #1a120c;
+}
+
+.feast {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.feast__scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.feast__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+  display: block;
+  animation: scene-drift 32s ease-in-out infinite alternate;
+  transform-origin: center 40%;
+}
+
+.feast__veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(20, 12, 6, 0.18) 0%,
+    rgba(20, 12, 6, 0.08) 40%,
+    rgba(12, 8, 4, 0.45) 72%,
+    rgba(10, 6, 3, 0.78) 100%
+  );
+  pointer-events: none;
+}
+
+.feast__embers {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 0%, rgba(255, 200, 120, 0.22), transparent 65%),
+    radial-gradient(circle at 20% 70%, rgba(255, 170, 80, 0.12), transparent 18%),
+    radial-gradient(circle at 78% 62%, rgba(255, 190, 100, 0.1), transparent 16%);
+  animation: glow-pulse 5.5s ease-in-out infinite;
+}
+
+.feast__content {
+  position: relative;
+  z-index: 2;
+  width: min(920px, 100%);
+  padding: 0 1.25rem calc(clamp(2rem, 8vh, 4.5rem) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(0.85rem, 2.5vh, 1.5rem);
+  text-align: center;
+}
+
+.feast__brand {
+  animation: title-pop 0.95s cubic-bezier(0.34, 1.45, 0.64, 1) both;
+}
+
+.feast__tagline {
+  margin: 0;
+  max-width: 28ch;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: clamp(1.15rem, 3.2vw, 1.65rem);
+  line-height: 1.35;
+  color: var(--parchment);
+  text-shadow:
+    0 1px 0 rgba(20, 12, 4, 0.7),
+    0 0.35em 0.8em rgba(10, 6, 3, 0.55);
+  animation: feast-tagline-in 0.8s ease-out 0.25s both;
+}
+
+@keyframes feast-tagline-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.6rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* —— Motion —— */
 
 @keyframes title-pop {
@@ -1573,6 +1682,10 @@ body {
   .defeat__title,
   .defeat__retry,
   .scene__image,
+  .feast__image,
+  .feast__embers,
+  .feast__brand,
+  .feast__tagline,
   .sky-glow,
   .unit__sprite,
   .unit.is-working .unit__sprite,

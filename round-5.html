@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Round 3 — Humans vs. Goblins</title>
+    <title>Round 5 — Humans vs. Goblins</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="styles.css?v=victory-feast" />
   </head>
   <body class="game-body">
-    <main class="game" data-round="3" aria-label="Round three battlefield">
+    <main class="game" data-round="5" aria-label="Round five battlefield">
       <div class="game__map" aria-hidden="true">
         <img
           class="game__map-image"
@@ -112,6 +112,110 @@
         >
           <span class="unit__sprite" aria-hidden="true"></span>
         </button>
+        <button
+          type="button"
+          class="unit unit--military unit--footman"
+          data-unit="footman"
+          data-unit-id="footman-1"
+          style="left: 44%; top: 62%"
+          aria-pressed="false"
+          aria-label="Footman"
+        >
+          <span class="unit__sprite unit__sprite--image" aria-hidden="true">
+            <img src="assets/units/footman.png" alt="" draggable="false" />
+          </span>
+        </button>
+        <button
+          type="button"
+          class="unit unit--military unit--footman"
+          data-unit="footman"
+          data-unit-id="footman-2"
+          style="left: 50%; top: 66%"
+          aria-pressed="false"
+          aria-label="Footman"
+        >
+          <span class="unit__sprite unit__sprite--image" aria-hidden="true">
+            <img src="assets/units/footman.png" alt="" draggable="false" />
+          </span>
+        </button>
+        <button
+          type="button"
+          class="unit unit--military unit--footman"
+          data-unit="footman"
+          data-unit-id="footman-3"
+          style="left: 56%; top: 62%"
+          aria-pressed="false"
+          aria-label="Footman"
+        >
+          <span class="unit__sprite unit__sprite--image" aria-hidden="true">
+            <img src="assets/units/footman.png" alt="" draggable="false" />
+          </span>
+        </button>
+        <button
+          type="button"
+          class="unit unit--military unit--footman"
+          data-unit="footman"
+          data-unit-id="footman-4"
+          style="left: 48%; top: 70%"
+          aria-pressed="false"
+          aria-label="Footman"
+        >
+          <span class="unit__sprite unit__sprite--image" aria-hidden="true">
+            <img src="assets/units/footman.png" alt="" draggable="false" />
+          </span>
+        </button>
+        <button
+          type="button"
+          class="unit unit--military unit--archer"
+          data-unit="archer"
+          data-unit-id="archer-1"
+          style="left: 38%; top: 55%"
+          aria-pressed="false"
+          aria-label="Archer"
+        >
+          <span class="unit__sprite unit__sprite--image" aria-hidden="true">
+            <img src="assets/units/archer.png" alt="" draggable="false" />
+          </span>
+        </button>
+        <button
+          type="button"
+          class="unit unit--military unit--archer"
+          data-unit="archer"
+          data-unit-id="archer-2"
+          style="left: 62%; top: 55%"
+          aria-pressed="false"
+          aria-label="Archer"
+        >
+          <span class="unit__sprite unit__sprite--image" aria-hidden="true">
+            <img src="assets/units/archer.png" alt="" draggable="false" />
+          </span>
+        </button>
+        <button
+          type="button"
+          class="unit unit--military unit--archer"
+          data-unit="archer"
+          data-unit-id="archer-3"
+          style="left: 50%; top: 54%"
+          aria-pressed="false"
+          aria-label="Archer"
+        >
+          <span class="unit__sprite unit__sprite--image" aria-hidden="true">
+            <img src="assets/units/archer.png" alt="" draggable="false" />
+          </span>
+        </button>
+        <button
+          type="button"
+          class="unit unit--military unit--knight"
+          data-unit="knight"
+          data-unit-id="knight-1"
+          style="left: 46%; top: 58%"
+          aria-pressed="false"
+          aria-label="Knight"
+        >
+          <span class="unit__sprite unit__sprite--image" aria-hidden="true">
+            <img src="assets/units/knight.png" alt="" draggable="false" />
+          </span>
+        </button>
       </div>
 
       <div
@@ -125,11 +229,11 @@
         <div class="round-intro__scroll">
           <div class="round-intro__roller round-intro__roller--top" aria-hidden="true"></div>
           <div class="round-intro__parchment">
-            <h2 class="round-intro__title" id="round-intro-title">Round 3</h2>
+            <h2 class="round-intro__title" id="round-intro-title">Round 5</h2>
             <p class="round-intro__text">
-              Well done! You've proven you can handle tougher challenges. But it
-              will only get harder from here. The goblin king has realized
-              sending one or two units at a time is not enough.
+              This is the final challenge. The goblin king himself approaches
+              with his horde. You have summoned all your forces for one final
+              challenge. Good luck.
             </p>
             <button type="button" class="round-intro__continue" id="round-intro-continue">
               Continue
@@ -401,7 +505,9 @@
         <div class="victory__veil" aria-hidden="true"></div>
         <div class="victory__content">
           <h2 class="victory__title" id="victory-title">Victory!!!!!!!!!</h2>
-          <a class="victory__next" href="#" id="next-round-button" hidden>Next Round</a>
+          <a class="victory__next" href="victory.html" id="next-round-button" hidden
+            >To the Feast</a
+          >
         </div>
       </div>
 
@@ -416,13 +522,13 @@
         <div class="defeat__veil" aria-hidden="true"></div>
         <div class="defeat__content">
           <h2 class="defeat__title" id="defeat-title">Defeat</h2>
-          <a class="defeat__retry" href="round-3.html" id="retry-round-button"
+          <a class="defeat__retry" href="round-5.html" id="retry-round-button"
             >Try Again</a
           >
         </div>
       </div>
     </main>
 
-    <script src="game.js?v=victory-feast" defer></script>
+    <script src="game.js?v=round5-spawns" defer></script>
   </body>
 </html>

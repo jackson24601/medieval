@@ -15,6 +15,8 @@
   const UNIT_BODY_INCHES = 0.28;
   const CSS_PX_PER_INCH = 96;
   const COMBAT_INTERVAL_SECONDS = 2;
+  const BATTERING_RAM_ATTACK_SECONDS = 5;
+  const BATTERING_RAM_CASTLE_DAMAGE = 10;
 
   const GOBLIN_LEVELS = {
     1: {
@@ -25,6 +27,8 @@
       hitOn: 2,
       damage: 1,
       rangeInches: MELEE_RANGE_INCHES,
+      speedScale: 1,
+      siegesCastle: false,
     },
     2: {
       level: 2,
@@ -34,6 +38,8 @@
       hitOn: 4,
       damage: 2,
       rangeInches: MELEE_RANGE_INCHES,
+      speedScale: 1,
+      siegesCastle: false,
     },
     3: {
       level: 3,
@@ -43,6 +49,34 @@
       hitOn: 2,
       damage: 1,
       rangeInches: ARCHER_RANGE_INCHES,
+      speedScale: 1,
+      siegesCastle: false,
+    },
+    4: {
+      level: 4,
+      label: "Battering Ram",
+      sprite: "assets/units/goblin-ram.png",
+      maxHp: 20,
+      hitOn: 7,
+      damage: 0,
+      rangeInches: MELEE_RANGE_INCHES,
+      speedScale: 0.5,
+      siegesCastle: true,
+      castleDamage: BATTERING_RAM_CASTLE_DAMAGE,
+      castleAttackSeconds: BATTERING_RAM_ATTACK_SECONDS,
+    },
+    5: {
+      level: 5,
+      label: "Goblin King",
+      sprite: "assets/units/goblin-king.png",
+      maxHp: 50,
+      // Guaranteed 5 damage every combat tick (2 seconds).
+      fixedDamage: 5,
+      hitOn: 1,
+      damage: 5,
+      rangeInches: MELEE_RANGE_INCHES,
+      speedScale: 1,
+      siegesCastle: false,
     },
   };
 
@@ -98,7 +132,67 @@
         },
       ],
       finalWaveAt: null,
-      nextRoundHref: null,
+      nextRoundHref: "round-4.html",
+    },
+    4: {
+      // 9:30 and every 30s: 2 level-one
+      level1: { firstAt: 9 * 60 + 30, interval: 30, count: 2 },
+      // 9:00 and every minute: 2 level-two
+      level2: { firstAt: 9 * 60, interval: 60, count: 2 },
+      level3: null,
+      // Timed archer spawns
+      level3At: [
+        8 * 60 + 45,
+        7 * 60 + 30,
+        6 * 60 + 30,
+        5 * 60 + 45,
+        3 * 60 + 45,
+        2 * 60 + 30,
+        1 * 60,
+      ],
+      // 8:00 and every 2 minutes: 1 battering ram
+      level4: { firstAt: 8 * 60, interval: 120, count: 1 },
+      minuteWave: null,
+      specialWaves: [],
+      // 0:30: two of each unit
+      finalWaveAt: 30,
+      finalWaveSpawns: [
+        { level: 1, count: 2 },
+        { level: 2, count: 2 },
+        { level: 3, count: 2 },
+        { level: 4, count: 2 },
+      ],
+      nextRoundHref: "round-5.html",
+    },
+    5: {
+      // 9:30 and every minute: 4 level-one
+      level1: { firstAt: 9 * 60 + 30, interval: 60, count: 4 },
+      // 9:00 and every minute: 3 level-two
+      level2: { firstAt: 9 * 60, interval: 60, count: 3 },
+      // 8:45 and every 45s: 1 archer + 1 battering ram
+      level3: { firstAt: 8 * 60 + 45, interval: 45, count: 1 },
+      level4: { firstAt: 8 * 60 + 45, interval: 45, count: 1 },
+      minuteWave: null,
+      // 5:00: six extra level-one (on top of the regular schedule)
+      specialWaves: [
+        {
+          at: 5 * 60,
+          spawns: [{ level: 1, count: 6 }],
+        },
+      ],
+      // 0:30: two of every type except the Goblin King
+      finalWaveAt: 30,
+      finalWaveSpawns: [
+        { level: 1, count: 2 },
+        { level: 2, count: 2 },
+        { level: 3, count: 2 },
+        { level: 4, count: 2 },
+      ],
+      // Goblin King enters when the round intro is dismissed.
+      spawnBossOnStart: true,
+      bossLevel: 5,
+      nextRoundHref: "victory.html",
+      autoAdvanceOnVictory: true,
     },
   };
 
@@ -406,12 +500,55 @@
   }
 
   function resolveGoblinCastleAttack(goblin) {
-    if (!goblinInCastleMelee(goblin)) return false;
+    if (!goblinInCastleMelee(goblin) || isBatteringRam(goblin)) return false;
     const damage = rollAttackDamage(goblin);
     if (damage <= 0) return false;
     playAttackShake(goblin);
     applyCastleDamage(damage);
     return true;
+  }
+
+  function resolveBatteringRamSiege(ram) {
+    if (!ram?.isConnected || !isBatteringRam(ram)) return false;
+
+    const config = getGoblinLevelConfig(4);
+    const structureHit = findNearbyStructure(ram);
+    const atCastle = goblinInCastleMelee(ram);
+    if (!atCastle && structureHit?.kind !== "structure") {
+      ram.dataset.ramCooldown = "0";
+      return false;
+    }
+
+    const cooldown = Number(ram.dataset.ramCooldown || 0) + 1;
+    const interval = config.castleAttackSeconds || BATTERING_RAM_ATTACK_SECONDS;
+    if (cooldown < interval) {
+      ram.dataset.ramCooldown = String(cooldown);
+      return false;
+    }
+
+    ram.dataset.ramCooldown = "0";
+    playAttackShake(ram);
+    const damage = config.castleDamage || BATTERING_RAM_CASTLE_DAMAGE;
+
+    if (structureHit?.kind === "structure" && structureHit.structure) {
+      applyDamage(structureHit.structure, damage);
+      return true;
+    }
+
+    if (atCastle) {
+      applyCastleDamage(damage);
+      return true;
+    }
+
+    return false;
+  }
+
+  function tickBatteringRams() {
+    goblins.forEach((goblin) => {
+      if (goblin.isConnected && isBatteringRam(goblin)) {
+        resolveBatteringRamSiege(goblin);
+      }
+    });
   }
 
   function endRoundInteraction() {
@@ -425,6 +562,12 @@
     gameOver = true;
     endRoundInteraction();
     if (defeatOverlay) defeatOverlay.hidden = true;
+
+    if (ROUND_CONFIG.autoAdvanceOnVictory && ROUND_CONFIG.nextRoundHref) {
+      window.location.assign(ROUND_CONFIG.nextRoundHref);
+      return;
+    }
+
     if (nextRoundButton) {
       if (ROUND_CONFIG.nextRoundHref) {
         nextRoundButton.href = ROUND_CONFIG.nextRoundHref;
@@ -551,6 +694,20 @@
     return GOBLIN_LEVELS[level] || GOBLIN_LEVELS[1];
   }
 
+  function isBatteringRam(unit) {
+    return (
+      unit?.dataset.unit === "goblin" &&
+      Number(unit.dataset.goblinLevel || 1) === 4
+    );
+  }
+
+  function isGoblinKing(unit) {
+    return (
+      unit?.dataset.unit === "goblin" &&
+      Number(unit.dataset.goblinLevel || 1) === 5
+    );
+  }
+
   function getUnitStats(unit) {
     if (!unit) return UNIT_STATS.villager;
     if (unit.dataset.unit === "goblin") {
@@ -607,6 +764,7 @@
     if (type === "goblin") {
       const level = Number(unit.dataset.goblinLevel || 1);
       const config = getGoblinLevelConfig(level);
+      if (config.fixedDamage != null) return config.fixedDamage;
       return roll >= config.hitOn ? config.damage : 0;
     }
 
@@ -952,6 +1110,9 @@
     foes.forEach((goblin) => {
       if (!goblin.isConnected) return;
 
+      // Battering rams ignore villagers and military; they only siege.
+      if (isBatteringRam(goblin)) return;
+
       const nearestMilitary = findNearestAttackTarget(
         goblin,
         military,
@@ -1276,7 +1437,9 @@
     button.dataset.goblinLevel = String(level);
     button.dataset.unitId = unitId;
     button.setAttribute("aria-pressed", "false");
-    button.setAttribute("aria-label", `${config.label} Level ${level}`);
+    const label =
+      level === 5 ? config.label : `${config.label} Level ${level}`;
+    button.setAttribute("aria-label", label);
     button.style.left = `${spawn.left}%`;
     button.style.top = `${spawn.top}%`;
     button.innerHTML = `
@@ -1319,6 +1482,10 @@
     return (schedule.firstAt - secondsLeft) % schedule.interval === 0;
   }
 
+  function scheduleSpawnCount(schedule) {
+    return Math.max(1, Number(schedule?.count || 1));
+  }
+
   function shouldSpawnLevel1Goblin(secondsLeft) {
     return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level1);
   }
@@ -1329,6 +1496,14 @@
 
   function shouldSpawnLevel3Goblin(secondsLeft) {
     return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level3);
+  }
+
+  function shouldSpawnLevel4Goblin(secondsLeft) {
+    return shouldSpawnOnInterval(secondsLeft, ROUND_CONFIG.level4);
+  }
+
+  function shouldSpawnTimedLevel3Goblin(secondsLeft) {
+    return Boolean(ROUND_CONFIG.level3At?.includes(secondsLeft));
   }
 
   function shouldSpawnMinuteWave(secondsLeft) {
@@ -1350,7 +1525,11 @@
 
   function spawnRoundGoblins(secondsLeft) {
     if (shouldSpawnFinalGoblinWave(secondsLeft)) {
-      spawnGoblinsFromAllDirections(1);
+      if (ROUND_CONFIG.finalWaveSpawns?.length) {
+        spawnWaveEntries(ROUND_CONFIG.finalWaveSpawns);
+      } else {
+        spawnGoblinsFromAllDirections(1);
+      }
       return;
     }
 
@@ -1364,13 +1543,19 @@
     }
 
     if (shouldSpawnLevel1Goblin(secondsLeft)) {
-      spawnGoblin(1);
+      spawnGoblinGroup(1, scheduleSpawnCount(ROUND_CONFIG.level1));
     }
     if (shouldSpawnLevel2Goblin(secondsLeft)) {
-      spawnGoblin(2);
+      spawnGoblinGroup(2, scheduleSpawnCount(ROUND_CONFIG.level2));
     }
     if (shouldSpawnLevel3Goblin(secondsLeft)) {
+      spawnGoblinGroup(3, scheduleSpawnCount(ROUND_CONFIG.level3));
+    }
+    if (shouldSpawnTimedLevel3Goblin(secondsLeft)) {
       spawnGoblin(3);
+    }
+    if (shouldSpawnLevel4Goblin(secondsLeft)) {
+      spawnGoblinGroup(4, scheduleSpawnCount(ROUND_CONFIG.level4));
     }
   }
 
@@ -1396,6 +1581,15 @@
   }
 
   function getGoblinTarget(goblin) {
+    if (isBatteringRam(goblin)) {
+      return {
+        left: CASTLE_POSITION.left,
+        top: CASTLE_POSITION.top,
+        kind: "castle",
+        unit: null,
+      };
+    }
+
     if (isGoblinEngagedWithMilitary(goblin)) {
       const nearestMilitary = findNearestMilitaryForGoblin(goblin);
       if (nearestMilitary) {
@@ -1491,36 +1685,44 @@
   }
 
   function updateGoblins(dt) {
-    const step = (GOBLIN_SPEED * dt) / 1000;
     const bodyPad = getRangePercent(UNIT_BODY_INCHES);
 
     goblins.forEach((goblin) => {
       if (!goblin.isConnected) return;
 
       const from = getUnitPosition(goblin);
-      const nearbyMilitary = findNearbyMilitaryInRange(goblin);
+      const ram = isBatteringRam(goblin);
+      const speedScale = getGoblinLevelConfig(
+        Number(goblin.dataset.goblinLevel || 1)
+      ).speedScale;
+      const step = (GOBLIN_SPEED * (speedScale || 1) * dt) / 1000;
 
-      if (nearbyMilitary) {
-        goblin.dataset.target = nearbyMilitary.friend.dataset.unit || "military";
-        goblin.classList.remove("is-walking");
-        goblin.dataset.frame = "0";
-        goblin.classList.toggle(
-          "is-flipped",
-          getUnitPosition(nearbyMilitary.friend).left < from.left
-        );
-        return;
-      }
+      if (!ram) {
+        const nearbyMilitary = findNearbyMilitaryInRange(goblin);
 
-      const nearbyVillager = findNearbyVillagerInRange(goblin);
-      if (nearbyVillager) {
-        goblin.dataset.target = "villager";
-        goblin.classList.remove("is-walking");
-        goblin.dataset.frame = "0";
-        goblin.classList.toggle(
-          "is-flipped",
-          getUnitPosition(nearbyVillager.friend).left < from.left
-        );
-        return;
+        if (nearbyMilitary) {
+          goblin.dataset.target =
+            nearbyMilitary.friend.dataset.unit || "military";
+          goblin.classList.remove("is-walking");
+          goblin.dataset.frame = "0";
+          goblin.classList.toggle(
+            "is-flipped",
+            getUnitPosition(nearbyMilitary.friend).left < from.left
+          );
+          return;
+        }
+
+        const nearbyVillager = findNearbyVillagerInRange(goblin);
+        if (nearbyVillager) {
+          goblin.dataset.target = "villager";
+          goblin.classList.remove("is-walking");
+          goblin.dataset.frame = "0";
+          goblin.classList.toggle(
+            "is-flipped",
+            getUnitPosition(nearbyVillager.friend).left < from.left
+          );
+          return;
+        }
       }
 
       const nearbyStructure = findNearbyStructure(goblin);
@@ -1528,7 +1730,10 @@
         goblin.dataset.target = nearbyStructure.kind;
         goblin.classList.remove("is-walking");
         goblin.dataset.frame = "0";
-        goblin.classList.toggle("is-flipped", nearbyStructure.pos.left < from.left);
+        goblin.classList.toggle(
+          "is-flipped",
+          nearbyStructure.pos.left < from.left
+        );
         return;
       }
 
@@ -1581,6 +1786,10 @@
     roundIntro.hidden = true;
     introActive = false;
     document.querySelector(".game")?.classList.remove("is-intro");
+
+    if (ROUND_CONFIG.spawnBossOnStart && ROUND_CONFIG.bossLevel) {
+      spawnGoblin(ROUND_CONFIG.bossLevel);
+    }
   }
 
   function tick() {
@@ -1602,6 +1811,7 @@
 
     tickRecruitJobs();
     tickBuildJobs();
+    tickBatteringRams();
     refreshEngagements();
 
     combatCountdown -= 1;
