@@ -149,6 +149,32 @@
         { level: 3, count: 2 },
         { level: 4, count: 2 },
       ],
+      nextRoundHref: "round-5.html",
+    },
+    5: {
+      // Placeholder pressure until the goblin king / final horde rules land.
+      level1: { firstAt: 9 * 60 + 30, interval: 30, count: 2 },
+      level2: { firstAt: 9 * 60, interval: 60, count: 2 },
+      level3: null,
+      level3At: [
+        8 * 60 + 45,
+        7 * 60 + 30,
+        6 * 60 + 30,
+        5 * 60 + 45,
+        3 * 60 + 45,
+        2 * 60 + 30,
+        1 * 60,
+      ],
+      level4: { firstAt: 8 * 60, interval: 120, count: 1 },
+      minuteWave: null,
+      specialWaves: [],
+      finalWaveAt: 30,
+      finalWaveSpawns: [
+        { level: 1, count: 2 },
+        { level: 2, count: 2 },
+        { level: 3, count: 2 },
+        { level: 4, count: 2 },
+      ],
       nextRoundHref: null,
     },
   };
